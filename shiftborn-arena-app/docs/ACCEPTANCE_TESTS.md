@@ -29,7 +29,7 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
 
 | Id | Type | Check | Pass when |
 |---|---|---|---|
-| AT-REPO-01 | TOOL | `pnpm setup` on a clean clone | Installs the frozen workspace dependencies and Playwright Chromium with the pinned Node.js and pnpm versions (D-060) |
+| AT-REPO-01 | TOOL | `pnpm run setup` on a clean clone | Installs the frozen workspace dependencies and Playwright Chromium with the pinned Node.js and pnpm versions (D-060) |
 | AT-REPO-02 | TOOL | `pnpm lint`, `pnpm typecheck`, `pnpm test` | All pass with zero warnings treated as errors |
 | AT-REPO-03 | TOOL | Dependency rules (ARCHITECTURE §3.1) | Importing `apps/*` from `packages/sim` fails lint; importing `three` from `packages/sim` fails lint |
 | AT-REPO-04 | TOOL | Sim purity lint | `Math.random`, `Date.now`, `performance.now`, `setTimeout`, `document`, `window` in `packages/sim/src` fail lint |

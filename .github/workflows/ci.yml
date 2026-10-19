@@ -31,7 +31,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: shiftborn-arena-app/pnpm-lock.yaml
       - name: Install frozen dependencies and Chromium
-        run: pnpm setup
+        run: pnpm run setup
       - name: Lint
         run: pnpm lint
       - name: Typecheck

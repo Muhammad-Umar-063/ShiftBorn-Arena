@@ -151,7 +151,7 @@ shiftborn-arena/
 
 | Script | Does |
 |---|---|
-| `pnpm setup` | Installs all workspace packages from the frozen lockfile and installs Playwright Chromium |
+| `pnpm run setup` | Installs all workspace packages from the frozen lockfile and installs Playwright Chromium |
 | `pnpm dev` | Server on port 2567 and Vite client on port 5173 (proxying `/ws` and `/healthz` to the server), with hot reload |
 | `pnpm build` | Builds shared, sim, server and client |
 | `pnpm test` | All Vitest suites |

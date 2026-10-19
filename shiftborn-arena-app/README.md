@@ -2,7 +2,7 @@
 
 A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players switch in real time among **Runner**, **Beast** and **Turret**. Runner counters Turret, Turret counters Beast and Beast counters Runner. Morphing costs **Flux**, matches last 3 minutes and bots keep every room full.
 
-> **Fast path for Codex:** read `AGENTS.md`, find the active item in `TASKS.md`, then read only the specifications named by that task. On a fresh clone, install everything with `pnpm setup`. Work only on `main`.
+> **Fast path for Codex:** read `AGENTS.md`, find the active item in `TASKS.md`, then read only the specifications named by that task. On a fresh clone, install everything with `pnpm run setup`. Work only on `main`.
 
 "Shiftborn Arena" is the working title (D-001, OQ-001).
 
@@ -10,7 +10,7 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 repository bootstrap. **Next task in the ordered queue:** T-002 unless the user names another eligible task.
+**Phase:** Prototype. **Completed:** T-001 through T-003. **Next task in the ordered queue:** T-004 unless the user names another eligible task.
 
 | Stage | Goal | Gate |
 |---|---|---|
@@ -35,7 +35,7 @@ The prototype tests H1 to H14 in `docs/PROTOTYPE_SCOPE.md` §5. It must prove th
 After cloning and entering the repository:
 
 ```bash
-pnpm setup
+pnpm run setup
 ```
 
 That single command:
@@ -56,7 +56,7 @@ Commands become functional when the task in the last column is complete. Until t
 
 | Command | Purpose | Available from |
 |---|---|---|
-| `pnpm setup` | Install all packages and Playwright Chromium | T-001 |
+| `pnpm run setup` | Install all packages and Playwright Chromium | T-001 |
 | `pnpm dev` | Start server on 2567 and client on 5173 | T-007 |
 | `pnpm build` | Build every workspace package | T-001 |
 | `pnpm lint` | Run ESLint and project rules | T-001 |

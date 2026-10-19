@@ -5,7 +5,7 @@ Canonical instructions for Codex and every engineer working on **Shiftborn Arena
 > **LLM START HERE**
 >
 > 1. Work only on the GitHub branch named `main`. Never create, switch to, or use another branch or worktree.
-> 2. Run `pnpm setup` once after a clean clone. It installs every declared package from the frozen lockfile and installs Playwright Chromium.
+> 2. Run `pnpm run setup` once after a clean clone. It installs every declared package from the frozen lockfile and installs Playwright Chromium.
 > 3. Read only the documents named by the active task. Use the authority order in section 3 if documents disagree.
 > 4. Never invent a rule, number, feature, or product decision. Use `OPEN_QUESTIONS.md` for real gaps.
 > 5. Implement one task at a time, run its listed acceptance tests, then update `TASKS.md` and report the result.
@@ -114,7 +114,7 @@ The two Markdown files outside the repository folder are context copies only. Re
 
 Follow these steps in order:
 
-1. **Prepare.** On a fresh clone, run `pnpm setup`. Otherwise, do not reinstall or upgrade dependencies merely to inspect the repository.
+1. **Prepare.** On a fresh clone, run `pnpm run setup`. Otherwise, do not reinstall or upgrade dependencies merely to inspect the repository.
 2. **Inspect.** Confirm `main`, inspect the working tree, and preserve unrelated changes. Run the smallest relevant baseline test when the project is already bootstrapped.
 3. **Select.** Use the task named by the user. If asked generally to continue, select the first `TODO` task whose dependencies are all `DONE`. Before T-100 passes, start only Stage A work or tasks marked `parallel-ok`.
 4. **Claim.** For implementation work, change its status to `IN PROGRESS (YYYY-MM-DD)`. Do not claim work for a read-only review or plan.
@@ -197,7 +197,7 @@ Commands become functional when the task in the final column is complete. Earlie
 
 | Command | Purpose | Available from |
 |---|---|---|
-| `pnpm setup` | Install the frozen workspace dependencies and Playwright Chromium | T-001 |
+| `pnpm run setup` | Install the frozen workspace dependencies and Playwright Chromium | T-001 |
 | `pnpm dev` | Server on 2567 and client on 5173 with hot reload | T-007 |
 | `pnpm build` | Build all workspace packages | T-001 |
 | `pnpm lint` | ESLint and repository rules | T-001 |
