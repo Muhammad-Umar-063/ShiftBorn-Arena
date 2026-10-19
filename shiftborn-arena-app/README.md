@@ -10,7 +10,7 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 through T-006. **Next task in the ordered queue:** T-007 unless the user names another eligible task.
+**Phase:** Prototype. **Completed:** T-001 through T-007. **Next optional design task:** T-008. **Next mandatory implementation task if T-008 is skipped:** T-010.
 
 | Stage | Goal | Gate |
 |---|---|---|
@@ -46,7 +46,7 @@ That single command:
 
 Do not install project libraries individually. To change a dependency, update its package manifest and lockfile deliberately, explain the reason, and keep the exact version pin.
 
-Environment files are introduced by T-007. When those example files exist, copy `.env.example` to `.env` and `apps/client/.env.example` to `apps/client/.env`.
+For local development, copy `.env.example` to `.env` for server settings and `apps/client/.env.example` to `apps/client/.env` for client build settings. The defaults also work without either file. Keep real `.env` files out of Git.
 
 ---
 
@@ -71,13 +71,13 @@ Commands become functional when the task in the last column is complete. Until t
 | `pnpm analyze <logs-dir>` | Build playtest metrics and reports | T-067 / T-131 |
 | `pnpm loadtest` | Run the default 20-room, 2-hour soak | T-141 |
 
-When T-007 is done:
+Start both the watched server and Vite client with one command:
 
 ```bash
 pnpm dev
 ```
 
-Open <http://localhost:5173>, enter a name and select **Play**. Use a second browser window for a second human; bots fill the remaining seats.
+Open <http://localhost:5173> to see the temporary Shiftborn Arena development landing shell and build ID. `http://localhost:2567/healthz` checks the local server; Vite proxies the same route at `http://localhost:5173/healthz`. This task provides no gameplay, rooms, bots or matchmaking. The name and Play flow belongs to T-030.
 
 Useful debug controls, when their tasks are complete:
 

@@ -27,6 +27,11 @@ module.exports = tseslint.config(
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   {
+    files: ['apps/client/vite.config.ts'],
+    // Vite loads this configuration through its required default export.
+    rules: { 'no-restricted-syntax': 'off' },
+  },
+  {
     files: ['packages/shared/src/**/*.ts'],
     rules: {
       'no-restricted-imports': [
