@@ -25,7 +25,7 @@ All message names, numeric type ids and encodings live in `packages/shared/src/p
 - **Transport:** Colyseus over WebSocket. `ws://` locally, `wss://` in the playtest deployment (Caddy terminates TLS).
 - **State:** `@colyseus/schema` binary delta patches.
 - **Messages:** Colyseus messages with numeric type ids (smaller than strings), payloads encoded by Colyseus (msgpack). Payloads are flat arrays where noted, to keep them small.
-- **Protocol version:** `PROTOCOL_VERSION` (integer) in `protocol.ts`. Bump it on any change to messages, schema or input encoding. The client sends it in the join options; the server rejects a mismatch with close code 4000 and the client shows "A new version is available. Reload."
+- **Protocol version:** `PROTOCOL_VERSION = 1` (initial integer version) in `protocol.ts`. Bump it on any later change to messages, schema or input encoding. The client sends it in the join options; the server rejects a mismatch with close code 4000 and the client shows "A new version is available. Reload."
 - **Balance check:** the `welcome` message carries `balanceVersion` and `balanceHash` (a stable hash of the `BALANCE` object). If the client's hash differs, it shows the same reload prompt. Prediction with different numbers would cause constant corrections.
 
 ---
@@ -197,34 +197,38 @@ Buttons (held state, not edges):
 
 `ev` payload: `[tick, e1, e2, ...]` where each event is a flat array starting with its numeric event type (from `protocol.ts`). The table lists the payload after the type. Ids are short player ids (seat index) where possible.
 
-| Event | Payload |
-|---|---|
-| `projectileSpawn` | id, ownerSeat, weapon, x, y, angle, spawnTick, advancedTicks, inputSeq, shotIdx |
-| `projectileHit` | id, targetSeat, damage, tags bitmask (1 EFFECTIVE, 2 RESISTED, 4 ARMOR), x, y |
-| `projectileImpact` | id, x, y |
-| `projectileExpire` | id |
-| `blocked` | id, targetSeat |
-| `morphStart` | seat, from, to, endTick |
-| `morphEnd` | seat, form |
-| `morphDenied` | seat, target, reason (0 cooldown, 1 flux, 2 busy, 3 phase) |
-| `abilityStart` | seat, ability, startTick, endTick, dirX, dirY |
-| `abilityEnd` | seat, ability, cancelled (0 or 1) |
-| `abilityHit` | seat, ability, targetSeat, damage, tags |
-| `railShotFired` | seat, x1, y1, x2, y2 |
-| `stun` | seat, endTick |
-| `knockback` | seat, vx, vy, endTick |
-| `overheat` | seat, endTick |
-| `death` | victimSeat, killerSeat, cause, killerForm, victimForm, finalDamage, counterForm, assistSeats... |
-| `spawn` / `respawn` | seat, x, y, protectedEndTick |
-| `shardSpawn` / `shardPickup` / `shardExpire` | shardId (pickup adds seat, value) |
-| `clusterAnnounce` | pointIndex, spawnTick |
-| `coverDestroyed` / `coverRebuilt` | coverIndex |
-| `zoneAnnounce` | nextPoint, moveTick |
-| `zoneMoved` | point |
-| `zoneState` | state, holderSeat (-1 none) |
-| `phase` | phase, phaseEndTick |
-| `matchEnd` | ranking (seat list) |
-| `botReplaced` | seat, newPlayerId |
+| Id | Event | Payload |
+|---|---|---|
+| 1 | `projectileSpawn` | id, ownerSeat, weapon, x, y, angle, spawnTick, advancedTicks, inputSeq, shotIdx |
+| 2 | `projectileHit` | id, targetSeat, damage, tags bitmask (1 EFFECTIVE, 2 RESISTED, 4 ARMOR), x, y |
+| 3 | `projectileImpact` | id, x, y |
+| 4 | `projectileExpire` | id |
+| 5 | `blocked` | id, targetSeat |
+| 6 | `morphStart` | seat, from, to, endTick |
+| 7 | `morphEnd` | seat, form |
+| 8 | `morphDenied` | seat, target, reason (0 cooldown, 1 flux, 2 busy, 3 phase) |
+| 9 | `abilityStart` | seat, ability, startTick, endTick, dirX, dirY |
+| 10 | `abilityEnd` | seat, ability, cancelled (0 or 1) |
+| 11 | `abilityHit` | seat, ability, targetSeat, damage, tags |
+| 12 | `railShotFired` | seat, x1, y1, x2, y2 |
+| 13 | `stun` | seat, endTick |
+| 14 | `knockback` | seat, vx, vy, endTick |
+| 15 | `overheat` | seat, endTick |
+| 16 | `death` | victimSeat, killerSeat, cause, killerForm, victimForm, finalDamage, counterForm, assistSeats... |
+| 17 | `spawn` | seat, x, y, protectedEndTick |
+| 18 | `respawn` | seat, x, y, protectedEndTick |
+| 19 | `shardSpawn` | shardId |
+| 20 | `shardPickup` | shardId, seat, value |
+| 21 | `shardExpire` | shardId |
+| 22 | `clusterAnnounce` | pointIndex, spawnTick |
+| 23 | `coverDestroyed` | coverIndex |
+| 24 | `coverRebuilt` | coverIndex |
+| 25 | `zoneAnnounce` | nextPoint, moveTick |
+| 26 | `zoneMoved` | point |
+| 27 | `zoneState` | state, holderSeat (-1 none) |
+| 28 | `phase` | phase, phaseEndTick |
+| 29 | `matchEnd` | ranking (seat list) |
+| 30 | `botReplaced` | seat, newPlayerId |
 
 Most of these duplicate state that also arrives in patches (for example shard lists). The event exists so the client can play effects and sounds at the right moment. **State is the truth; events are for presentation**, except projectile events, which exist only as events (D-034).
 

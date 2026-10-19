@@ -39,8 +39,11 @@ describe('AT-MAP-01 validator', () => {
     expect((metrics.sightlines.shareOver30 * 100).toFixed(1)).toBe('0.2');
     expect(metrics.sightlines.destroyedLongestM.toFixed(1)).toBe('35.7');
     expect(metrics.minimumClearanceM.spawn).toBe(3);
+    expect(metrics.maximumClearanceM.spawn).toBe(3);
     expect(metrics.minimumClearanceM.shard).toBe(2.5);
+    expect(metrics.maximumClearanceM.shard).toBe(3);
     expect(metrics.minimumClearanceM.crate).toBe(2);
+    expect(metrics.maximumClearanceM.crate).toBe(3.5);
     expect(metrics.minimumSpawnSpreadM?.toFixed(1)).toBe('14.0');
     expect(metrics.minimumSpawnZoneM?.toFixed(1)).toBe('14.9');
     expect(
@@ -204,11 +207,22 @@ describe('AT-MAP-01 validator', () => {
         spawnPoints: GREYBOX_V1.spawnPoints.map((point, index) =>
           index === 0 ? { ...point, id: 'B-N' } : point,
         ),
-        cratePoints: GREYBOX_V1.cratePoints.slice(1),
+        shardPoints: GREYBOX_V1.shardPoints.slice(1),
       }),
     );
     expect(report.rules.find((rule) => rule.id === 'V9')?.passed).toBe(false);
     expect(report.metrics.uniqueIds).toBeLessThan(report.metrics.totalIds);
+  });
+
+  it('allows a non-empty reserved crate collection shorter than six in V9', () => {
+    const report = validateMap(
+      changed({ cratePoints: GREYBOX_V1.cratePoints.slice(0, 1) }),
+    );
+    expect(report.rules.find((rule) => rule.id === 'V9')?.passed).toBe(true);
+  });
+
+  it('fails V9 for an empty reserved crate collection', () => {
+    expect(ruleFails(changed({ cratePoints: [] }), 'V9')).toBe(true);
   });
 
   it('returns a non-zero CLI code and names the failing map and rule', () => {

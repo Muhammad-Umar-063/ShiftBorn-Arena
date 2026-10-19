@@ -4,6 +4,15 @@ function distance(value: number | null): string {
   return value === null ? 'n/a' : `${value.toFixed(2)} m`;
 }
 
+function clearanceRange(
+  minimum: number | null,
+  maximum: number | null,
+): string {
+  return minimum === maximum
+    ? distance(minimum)
+    : `${distance(minimum)} to ${distance(maximum)}`;
+}
+
 export function reportsExitCode(reports: readonly MapReport[]): number {
   return reports.length > 0 && reports.every((report) => report.passed) ? 0 : 1;
 }
@@ -20,7 +29,7 @@ export function formatReport(report: MapReport): string {
     `  Connected regions: Runner ${metrics.connectedRegions.runner}, Beast ${metrics.connectedRegions.beast}`,
   );
   lines.push(
-    `  Point clearance: spawn ${distance(metrics.minimumClearanceM.spawn)}, shard ${distance(metrics.minimumClearanceM.shard)}, zone ${distance(metrics.minimumClearanceM.zone)}, crate ${distance(metrics.minimumClearanceM.crate)}`,
+    `  Point clearance: spawn ${clearanceRange(metrics.minimumClearanceM.spawn, metrics.maximumClearanceM.spawn)}, shard ${clearanceRange(metrics.minimumClearanceM.shard, metrics.maximumClearanceM.shard)}, zone ${clearanceRange(metrics.minimumClearanceM.zone, metrics.maximumClearanceM.zone)}, crate ${clearanceRange(metrics.minimumClearanceM.crate, metrics.maximumClearanceM.crate)}`,
   );
   lines.push(
     `  Intact longest sightline: ${distance(metrics.sightlines.intactLongestM)}`,

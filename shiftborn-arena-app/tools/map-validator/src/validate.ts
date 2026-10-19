@@ -19,6 +19,9 @@ export interface MapMetrics {
   readonly minimumClearanceM: Readonly<
     Record<'spawn' | 'shard' | 'zone' | 'crate', number | null>
   >;
+  readonly maximumClearanceM: Readonly<
+    Record<'spawn' | 'shard' | 'zone' | 'crate', number | null>
+  >;
   readonly connectedRegions: Readonly<Record<'runner' | 'beast', number>>;
   readonly sightlines: {
     readonly intactLongestM: number;
@@ -85,6 +88,10 @@ function finiteMinimum(values: readonly number[]): number | null {
   return values.length ? Math.min(...values) : null;
 }
 
+function finiteMaximum(values: readonly number[]): number | null {
+  return values.length ? Math.max(...values) : null;
+}
+
 function validateBounds(map: MapData): RuleResult {
   const messages: string[] = [];
   const bounds = map.bounds;
@@ -138,6 +145,7 @@ function validateBounds(map: MapData): RuleResult {
 function validateClearance(map: MapData): {
   rule: RuleResult;
   minima: MapMetrics['minimumClearanceM'];
+  maxima: MapMetrics['maximumClearanceM'];
 } {
   const allBoxes = boxes(map).map(({ box }) => box);
   const messages: string[] = [];
@@ -148,6 +156,12 @@ function validateClearance(map: MapData): {
     crate: map.cratePoints,
   };
   const minima: Record<keyof typeof categories, number | null> = {
+    spawn: null,
+    shard: null,
+    zone: null,
+    crate: null,
+  };
+  const maxima: Record<keyof typeof categories, number | null> = {
     spawn: null,
     shard: null,
     zone: null,
@@ -170,8 +184,9 @@ function validateClearance(map: MapData): {
       return distance;
     });
     minima[category] = finiteMinimum(distances);
+    maxima[category] = finiteMaximum(distances);
   }
-  return { rule: result('V2', 'Point clearance', messages), minima };
+  return { rule: result('V2', 'Point clearance', messages), minima, maxima };
 }
 
 interface Grid {
@@ -437,7 +452,6 @@ function validateIds(map: MapData): {
     ['spawns', map.spawnPoints.length, 10],
     ['shards', map.shardPoints.length, 10],
     ['zones', map.zonePoints.length, 5],
-    ['reserved crates', map.cratePoints.length, 6],
   ] as const) {
     if (actual !== expected)
       messages.push(`${name}: expected ${expected}, found ${actual}.`);
@@ -516,6 +530,7 @@ export function validateMap(map: MapData): MapReport {
     rules,
     metrics: {
       minimumClearanceM: clearance.minima,
+      maximumClearanceM: clearance.maxima,
       connectedRegions: {
         runner: connectivity.grids.runner.regionCount,
         beast: connectivity.grids.beast.regionCount,
