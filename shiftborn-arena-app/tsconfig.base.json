@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noEmitOnError": true,
+    "declaration": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@shiftborn/shared": ["./packages/shared/src/index.ts"],
+      "@shiftborn/sim": ["./packages/sim/src/index.ts"],
+      "@shiftborn/server": ["./apps/server/src/index.ts"],
+      "@shiftborn/client": ["./apps/client/src/index.ts"],
+      "@shiftborn/map-validator": ["./tools/map-validator/src/index.ts"],
+      "@shiftborn/analyze": ["./tools/analyze/src/index.ts"],
+      "@shiftborn/replay": ["./tools/replay/src/index.ts"],
+      "@shiftborn/loadtest": ["./tools/loadtest/src/index.ts"]
+    }
+  }
+}

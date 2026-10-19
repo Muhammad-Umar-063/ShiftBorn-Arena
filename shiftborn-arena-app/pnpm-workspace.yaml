@@ -1,0 +1,10 @@
+packages:
+  - 'packages/*'
+  - 'apps/*'
+  - 'tools/*'
+
+saveExact: true
+engineStrict: true
+
+allowBuilds:
+  msgpackr-extract: true
