@@ -247,7 +247,11 @@ importers:
 
   tools/loadtest: {}
 
-  tools/map-validator: {}
+  tools/map-validator:
+    dependencies:
+      '@shiftborn/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
 
   tools/replay: {}
 

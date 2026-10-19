@@ -18,7 +18,7 @@
     "typecheck": "pnpm -r --workspace-concurrency=1 run typecheck && tsc --noEmit -p tsconfig.json",
     "check:size": "node scripts/checkSize.mjs",
     "sim:determinism": "node -e \"console.log('not implemented yet (T-056)')\"",
-    "map:validate": "node -e \"console.log('not implemented yet (T-005)')\"",
+    "map:validate": "pnpm --filter @shiftborn/shared build && pnpm --filter @shiftborn/map-validator build && pnpm --filter @shiftborn/map-validator validate",
     "analyze": "node -e \"console.log('not implemented yet (T-067)')\"",
     "replay": "node -e \"console.log('not implemented yet (T-028)')\"",
     "loadtest": "node -e \"console.log('not implemented yet (T-141)')\""
