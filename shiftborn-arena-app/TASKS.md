@@ -25,7 +25,7 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | Id | Title | Depends on | Size | Status |
 |---|---|---|---|---|
 | T-001 | Monorepo, tooling and pinned versions | none | M | DONE (2026-10-16) |
-| T-002 | CI workflows | T-001 | S | TODO |
+| T-002 | CI workflows | T-001 | S | DONE (2026-10-19) |
 | T-003 | Shared balance, derived values, constants | T-001 | M | TODO |
 | T-004 | Map types and `greybox_v1` data | T-001 | S | TODO |
 | T-005 | Map validator tool | T-004 | M | TODO |
@@ -658,3 +658,4 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | Task | Size | Hours actual | Finished | Notes |
 |---|---|---|---|---|
 | T-001 | M | Not tracked | 2026-10-16 | Pinned workspace, lint fixture tests and clean frozen install. TypeScript pinned to newest release compatible with typescript-eslint. |
+| T-002 | S | Not tracked | 2026-10-19 | Main CI and nightly skeleton, client gzip size gate, canonical instructions check. Local checks passed; first hosted CI run awaits a push. |

@@ -1,0 +1,44 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: shiftborn-arena-app
+    steps:
+      - uses: actions/checkout@v7
+      - name: Check canonical agent instructions
+        run: |
+          test -s AGENTS.md
+          grep -Fq 'AGENTS.md' CLAUDE.md
+          test "$(wc -c < CLAUDE.md)" -lt 1024
+          ! cmp -s AGENTS.md CLAUDE.md
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12.14.0
+          run_install: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: shiftborn-arena-app/.nvmrc
+          cache: pnpm
+          cache-dependency-path: shiftborn-arena-app/pnpm-lock.yaml
+      - name: Install frozen dependencies and Chromium
+        run: pnpm setup
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Test
+        run: pnpm test
+      - name: Build
+        run: pnpm build
+      - name: Check client size
+        run: pnpm check:size
