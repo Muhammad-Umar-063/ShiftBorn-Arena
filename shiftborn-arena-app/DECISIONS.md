@@ -262,3 +262,9 @@ Last updated: 2026-10-16.
 | Prettier | 3.9.10 |
 
 TypeScript 7.0.2 is the newest release, but typescript-eslint 8.71.2 declares support only for TypeScript below 6.1. TypeScript 6.0.3 is the newest compatible release. The server uses the focused Colyseus core and WebSocket packages because the `colyseus` umbrella package pulls a Git-sourced optional transport that pnpm 12 rejects by default.
+
+### D-063 Bot difficulty wire codes
+
+- **Decision:** Encode Easy as 0, Normal as 1, and Hard as 2 in the existing `RoomSettings.botDifficulty` and `hostSettings.botDifficulty` uint8 fields.
+- **Status:** Approved by Hamza (confirmed in conversation, 2026-10-20).
+- **Task:** T-025. The existing protocol fields had no documented numeric mapping.

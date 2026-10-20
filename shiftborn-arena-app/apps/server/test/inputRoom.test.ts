@@ -112,7 +112,9 @@ async function withRoom(
   try {
     await server.listen(port, '127.0.0.1');
     testServer = new ColyseusTestServer(server);
-    const room = await testServer.createRoom<InputHarnessRoom>('arena');
+    const room = await testServer.createRoom<InputHarnessRoom>('arena', {
+      code: '',
+    });
     room.stopTestLoop();
     await test(room, testServer);
   } finally {
@@ -127,6 +129,7 @@ describe('T-022 real Colyseus input pipeline', () => {
       room.preparePlayer(0);
       const client = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
       });
       const queue = room.bindTestClient(0);
       client.send(ClientMessageId.Input, [
@@ -174,9 +177,11 @@ describe('T-022 real Colyseus input pipeline', () => {
       room.preparePlayer(1);
       const bad = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
       });
       const good = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
       });
       const badQueue = room.bindTestClient(0);
       const goodQueue = room.bindTestClient(1);
@@ -207,6 +212,7 @@ describe('T-022 real Colyseus input pipeline', () => {
       room.preparePlayer(0);
       const client = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
       });
       const queue = room.bindTestClient(0);
       const left = new Promise<number>((resolve) => client.onLeave(resolve));

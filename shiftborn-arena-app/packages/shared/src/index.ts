@@ -24,3 +24,6 @@ export type { Box, MapData, MapPoint } from './maps/types.js';
 export * from './protocol.js';
 export { displayHealth, displayDamage } from './display.js';
 export { generateSafePlayerName, sanitizePlayerName } from './names.js';
+export { isValidRoomCode } from './ids.js';
+export { BotDifficultyCode, isBotDifficultyCode } from './botDifficulty.js';
+export type { BotDifficultyCode as BotDifficultyWireCode } from './botDifficulty.js';

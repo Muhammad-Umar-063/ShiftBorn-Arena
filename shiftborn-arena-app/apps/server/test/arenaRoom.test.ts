@@ -78,9 +78,10 @@ describe('T-021 ArenaRoom real Colyseus integration', () => {
     try {
       await server.listen(port, '127.0.0.1');
       testServer = new ColyseusTestServer(server);
-      room = await testServer.createRoom<HarnessRoom>('arena');
+      room = await testServer.createRoom<HarnessRoom>('arena', { code: '' });
       const client = await testServer.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
       });
       leaveClient = () => client.leave(true);
       const clientState = client.state as ArenaStateRecord;

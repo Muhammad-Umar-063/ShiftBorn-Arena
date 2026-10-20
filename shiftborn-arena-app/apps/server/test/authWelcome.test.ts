@@ -110,7 +110,9 @@ async function withRoom(
   try {
     await server.listen(port, '127.0.0.1');
     testServer = new ColyseusTestServer(server);
-    const room = await testServer.createRoom<AuthHarnessRoom>('arena');
+    const room = await testServer.createRoom<AuthHarnessRoom>('arena', {
+      code: '',
+    });
     room.stopTestLoop();
     await test(room, testServer, port);
   } finally {
@@ -152,6 +154,7 @@ describe('T-023 real Colyseus authentication and welcome', () => {
       }
       const valid = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
         name: ' Alice ',
       });
       expect(room.joinedNames).toEqual(['Alice']);
@@ -162,6 +165,7 @@ describe('T-023 real Colyseus authentication and welcome', () => {
   it('AT-SEC-02 sanitizes names in auth and rejects overlength without leaking input', async () => {
     const raw = Object.freeze({
       protocolVersion: PROTOCOL_VERSION,
+      code: '',
       name: '<b>X</b>',
     });
     expect(authenticatePlayer(raw, '')).toEqual(authenticatePlayer(raw, ''));
@@ -169,13 +173,13 @@ describe('T-023 real Colyseus authentication and welcome', () => {
     expect(raw.name).toBe('<b>X</b>');
     expect(() =>
       authenticatePlayer(
-        { protocolVersion: PROTOCOL_VERSION, name: 'X'.repeat(17) },
+        { protocolVersion: PROTOCOL_VERSION, code: '', name: 'X'.repeat(17) },
         '',
       ),
     ).toThrowError();
     try {
       authenticatePlayer(
-        { protocolVersion: PROTOCOL_VERSION, name: 'X'.repeat(17) },
+        { protocolVersion: PROTOCOL_VERSION, code: '', name: 'X'.repeat(17) },
         '',
       );
     } catch (error) {
@@ -186,6 +190,7 @@ describe('T-023 real Colyseus authentication and welcome', () => {
       await expect(
         server.connectTo(room, {
           protocolVersion: PROTOCOL_VERSION,
+          code: '',
           name: 'X'.repeat(17),
         }),
       ).rejects.toMatchObject({ code: ErrorCode.AUTH_FAILED });
@@ -200,6 +205,7 @@ describe('T-023 real Colyseus authentication and welcome', () => {
     await withRoom(async (room, server) => {
       const client = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
         name: 'Bob',
         buildId: 'untrusted-build',
       });
@@ -240,6 +246,7 @@ describe('T-023 real Colyseus authentication and welcome', () => {
     await withRoom(async (room, server) => {
       const client = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: '',
       });
       const batches: unknown[] = [];
       client.onMessage(ServerMessageId.Ev, (payload: unknown) =>

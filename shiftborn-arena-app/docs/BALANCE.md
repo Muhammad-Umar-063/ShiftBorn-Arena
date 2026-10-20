@@ -143,6 +143,7 @@ Tuning ranges: damage ±20%, rate ±20%, range ±15%, projectile speed ±20%. Ke
 | `net.reconnectS` | 30 | s | Seat held by a proxy bot |
 | `net.afkWarnS` | 30 | s | No input with a visible tab: warning |
 | `net.afkBotS` | 45 | s | Proxy bot takes over |
+| `net.afkAimThresholdDeg` | 2 | ° | Strictly greater aim change counts as meaningful input (§9.4) |
 | `net.maxInputsPerS` | 40 | inputs/s | Above this, inputs are dropped |
 | `net.inputBufferMax` | 8 | inputs | Server buffer per player; oldest dropped |
 | `net.smoothErrorM` | 0.5 | m | Prediction errors below this are smoothed |
@@ -162,7 +163,7 @@ Tuning ranges: damage ±20%, rate ±20%, range ±15%, projectile speed ±20%. Ke
 // packages/shared/src/balance.ts
 // Single source of truth for every gameplay number. Human units. See docs/BALANCE.md.
 export const BALANCE = {
-  version: 'proto-2',
+  version: 'proto-3',
   tick: { rateHz: 30, patchRateHz: 20 },
   match: {
     seats: 8, countdownS: 3, durationS: 180, resultsS: 15, lateJoinCutoffS: 60,
@@ -205,7 +206,7 @@ export const BALANCE = {
   zoneFrenzy: { koPoints: 5, zoneRadiusM: 6, moveEveryS: 45, previewS: 10, pointsPerS: 1 },
   keyboardAim: { turnDegPerS: 720 },
   softLock: { acquireConeDeg: 60, trackTurnDegPerS: 720, leadFactor: 0.5, breakAfterS: 0.5, releaseHoldS: 0.5 },
-  net: { inputRedundancy: 3, interpDelayMs: 100, pingIntervalS: 2, reconnectS: 30, afkWarnS: 30, afkBotS: 45,
+  net: { inputRedundancy: 3, interpDelayMs: 100, pingIntervalS: 2, reconnectS: 30, afkWarnS: 30, afkBotS: 45, afkAimThresholdDeg: 2,
          maxInputsPerS: 40, inputBufferMax: 8, smoothErrorM: 0.5, smoothMs: 100 },
   backfill: { outOfCombatS: 3 },
   bots: {
@@ -285,3 +286,4 @@ Design target: 4 to 8 morphs per human per match (H1). Levers in order: `morph.c
 |---|---|---|---|---|
 | proto-1 | 2026-10-14 | Initial values from GDD v2.1 plus prototype additions | Prototype start | D-002 |
 | proto-2 | 2026-10-20 | Exposed `shards.dropNudgeStepM = 0.1` from GR-10.9 | Missing approved key; no existing value tuned | GR-10.9 |
+| proto-3 | 2026-10-20 | Exposed `net.afkAimThresholdDeg = 2` from NETWORK_PROTOCOL §9.4 | Required for tick-based AFK input detection; no existing value tuned | NETWORK_PROTOCOL §9.4 |

@@ -20,6 +20,16 @@ export interface AppliedInput {
   readonly consumedSequences: readonly number[];
 }
 
+export interface AcceptedInput {
+  readonly frame: ClientInputFrame;
+  readonly previousAim: number;
+}
+
+export interface ReceivedInput {
+  readonly shouldKick: boolean;
+  readonly accepted: readonly AcceptedInput[];
+}
+
 type DropReason = Exclude<keyof InputDropCounters, 'total'>;
 const RATE_WINDOW_MS = 1000;
 const VIOLATION_WINDOW_MS = 10 * RATE_WINDOW_MS;
@@ -39,6 +49,7 @@ export class InputQueue {
   lastReceivedSeq = 0;
   lastInputSeq = -1;
   lastHeldButtons = 0;
+  private lastAcceptedAim = 0;
   private lastApplied: ClientInputFrame | undefined;
   private readonly acceptedAtMs: number[] = [];
   private readonly violationsAtMs: number[] = [];
@@ -57,23 +68,29 @@ export class InputQueue {
 
   /** Returns true only when this packet first reaches the kick threshold. */
   receive(payload: unknown): boolean {
-    if (this.closed) return false;
+    return this.receiveDetailed(payload).shouldKick;
+  }
+
+  /** T-026 observes only newly accepted frames; T-022's queue rules stay intact. */
+  receiveDetailed(payload: unknown): ReceivedInput {
+    if (this.closed) return { shouldKick: false, accepted: [] };
     const wasClosed = this.closed;
     const now = this.nowMs();
     const decoded = decodeInputPacket(payload, this.lastReceivedSeq);
     if (!decoded.packetValid) {
       this.drop('malformedPacket', now);
-      return !wasClosed && this.closed;
+      return { shouldKick: !wasClosed && this.closed, accepted: [] };
     }
     for (let index = 0; index < decoded.rejectedFrames; index += 1)
       this.drop('invalidFrame', now);
-    if (this.closed) return !wasClosed;
+    if (this.closed) return { shouldKick: !wasClosed, accepted: [] };
 
     // The wire is newest first. Sort newly received frames for deterministic
     // application and retain only sequences beyond the previous high water mark.
     const newFrames = decoded.frames
       .filter((frame) => frame.seq > this.lastReceivedSeq)
       .sort((left, right) => left.seq - right.seq);
+    const accepted: AcceptedInput[] = [];
     for (const frame of newFrames) {
       if (frame.seq <= this.lastReceivedSeq) continue;
       this.lastReceivedSeq = frame.seq;
@@ -84,6 +101,8 @@ export class InputQueue {
         continue;
       }
       this.acceptedAtMs.push(now);
+      accepted.push({ frame, previousAim: this.lastAcceptedAim });
+      this.lastAcceptedAim = frame.aim;
       this.frames.push(frame);
       if (this.frames.length > BALANCE.net.inputBufferMax) {
         this.frames.shift();
@@ -91,7 +110,7 @@ export class InputQueue {
         if (this.closed) break;
       }
     }
-    return !wasClosed && this.closed;
+    return { shouldKick: !wasClosed && this.closed, accepted };
   }
 
   /** Known IDs without a T-022 handler are ignored by the room. */
@@ -126,6 +145,19 @@ export class InputQueue {
     this.lastHeldButtons = held;
     this.lastInputSeq = frame.seq;
     return { frame, pressedButtons, consumedSequences };
+  }
+
+  /** Preserve sequence high-water marks while discarding inactive-seat input. */
+  discardPending(): void {
+    this.frames.length = 0;
+    this.lastApplied = undefined;
+    this.lastHeldButtons = 0;
+  }
+
+  /** Keep only the first waking frame after AFK proxy control. */
+  retainWakingFrame(frame: ClientInputFrame): void {
+    this.discardPending();
+    this.frames.push(frame);
   }
 
   private drop(reason: DropReason, now: number): void {

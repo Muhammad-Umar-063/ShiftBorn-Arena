@@ -150,6 +150,7 @@ export function assignHumanSeat(
   world: World,
   choice: HumanSeatChoice,
   human: Pick<PlayerIdentity, 'id' | 'name'>,
+  waitForNextMatch = false,
 ): EncodedEvent[] {
   const before = world.events.length;
   if (choice.kind === 'replace') {
@@ -158,7 +159,13 @@ export function assignHumanSeat(
       throw new Error('selected bot changed before replacement');
     removePlayer(world, choice.botId);
   }
-  addPlayer(world, { ...human, isBot: false, seat: choice.seat });
+  addPlayer(
+    world,
+    { ...human, isBot: false, seat: choice.seat },
+    {
+      waitForNextMatch,
+    },
+  );
   const events = encodeSimEvents(world.events.slice(before));
   return choice.kind === 'replace'
     ? [[EventId.BotReplaced, choice.seat, human.id], ...events]

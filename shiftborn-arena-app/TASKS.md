@@ -47,8 +47,8 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-022 | Server input pipeline | T-021 | M | DONE (2026-10-20) |
 | T-023 | Event batching, welcome, version checks | T-021 | S | DONE (2026-10-20) |
 | T-024 | Seats, bot backfill and instant replacement | T-021 | M | DONE (2026-10-20) |
-| T-025 | Matchmaking: quick play, code rooms, host, locking | T-024 | M | TODO |
-| T-026 | Connection lifecycle: drop, reconnect, hidden tab, AFK, leave, shutdown | T-024 | M | TODO |
+| T-025 | Matchmaking: quick play, code rooms, host, locking | T-024 | M | DONE (2026-10-20) |
+| T-026 | Connection lifecycle: drop, reconnect, hidden tab, AFK, leave, shutdown | T-024 | M | DONE (2026-10-20) |
 | T-027 | RTT probes, clock sync and spawn advance wiring | T-022 | S | TODO |
 | T-028 | Match log, input log and replay tool | T-021 | M | TODO |
 | T-029 | Dev cheats | T-021 | S | TODO |
@@ -679,3 +679,5 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-022 | M | Not tracked | 2026-10-20 | Validated numeric input packets, per-seat sequence queues, redundant recovery, two-frame edge union, rolling rate/abuse limits, 4003 kick, 4 KiB WebSocket cap, and room/sim integration. OQ-014 and OQ-015 remain open. |
 | T-023 | S | Not tracked | 2026-10-20 | Static auth, safe names, authoritative welcome, and ordered event batches. Approved transport exception: pinned SDK reports HTTP 400 for a mismatch; the JSON body carries code 4000. Seat allocation remains T-024. |
 | T-024 | M | Not tracked | 2026-10-20 | Eight idle placeholder bots enter one seeded match start; neutral bot frames, damage-tick replacement choice, same-tick human joins, sorted projectile expiry, and final human-to-bot life handoff. Matchmaking and reconnect policy remain later tasks. |
+| T-025 | M | Not tracked | 2026-10-20 | Exact room codes, fullest eligible quick-play matching, code-room fullness and host handover, approved D-063 difficulty codes, pending settings and bot-fill reconciliation, late waiting and quick-play cutoff lock. T-026 owns reconnect, proxy, AFK, disposal and shutdown. |
+| T-026 | M | Not tracked | 2026-10-20 | Retained human sessions and input sequences across 30-second reconnects; visibility and tick-based AFK proxy handoff; final leave, host handover, room disposal, and graceful shutdown with notice, RESULTS wait cap, and 4004 close. Proxy input stays neutral until T-055. |

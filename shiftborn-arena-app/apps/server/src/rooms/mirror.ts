@@ -112,6 +112,7 @@ export interface MirrorContext {
   readonly hostId?: string;
   readonly settings?: {
     readonly botFill?: boolean;
+    readonly botDifficulty?: number;
     readonly nextMode?: Mode;
   };
 }
@@ -226,6 +227,11 @@ export function mirrorWorld(
     state.settings,
     'botFill',
     context.settings?.botFill ?? false,
+  );
+  changed += assign(
+    state.settings,
+    'botDifficulty',
+    context.settings?.botDifficulty ?? 0,
   );
   changed += assign(
     state.settings,

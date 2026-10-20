@@ -19,7 +19,7 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
   - `TOOL`: a repository script (`pnpm map:validate`, `pnpm loadtest`, and so on).
   - `MANUAL`: a person follows the steps on a local or deployed build and records the result in the task completion report.
   - `PLAYTEST`: measured in playtests and reported in the prototype report.
-- **Numbers:** expected values come from `docs/BALANCE.md` proto-2. If balance changes, update the expected values in the same task.
+- **Numbers:** expected values come from `docs/BALANCE.md` proto-3. If balance changes, update the expected values in the same task.
 - **Tolerances:** positions ±0.01 m in SIM tests unless stated; timings exact in ticks.
 - Every SIM test sets up its world with the test helper `makeTestWorld({ seed, mode, players })` on `greybox_v1` or on the empty test map `test_open` (a 64 x 64 m box with outer walls only, defined in the sim test fixtures).
 

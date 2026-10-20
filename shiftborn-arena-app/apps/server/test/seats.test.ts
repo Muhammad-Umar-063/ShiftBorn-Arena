@@ -288,7 +288,7 @@ async function withRoom<T extends SeatHarnessRoom>(
   try {
     await server.listen(port, '127.0.0.1');
     testServer = new ColyseusTestServer(server);
-    const room = await testServer.createRoom<T>('arena');
+    const room = await testServer.createRoom<T>('arena', { code: 'ABC234' });
     room.stopTestLoop();
     await test(room, testServer);
   } finally {
@@ -385,6 +385,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
       ).toEqual([]);
       const first = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
         name: 'Alice',
       });
       expect(world.events.some((event) => event.type === 'shardSpawn')).toBe(
@@ -398,6 +399,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
     await withRoom<SeatHarnessRoom>(SeatHarnessRoom, async (room, server) => {
       const observer = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
         name: 'Observer',
       });
       expect(room.testWorld.players[7]?.id).toBe(observer.sessionId);
@@ -418,6 +420,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
       const tick = room.testWorld.tick;
       const human = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
         name: ' Human ',
       });
       await until(() => batches.length === 1);
@@ -498,7 +501,10 @@ describe('AT-NET-10 real room seat lifecycle', () => {
       const clients = [];
       for (let seat = 0; seat < BALANCE.match.seats; seat += 1) {
         clients.push(
-          await server.connectTo(room, { protocolVersion: PROTOCOL_VERSION }),
+          await server.connectTo(room, {
+            protocolVersion: PROTOCOL_VERSION,
+            code: 'ABC234',
+          }),
         );
       }
       expect(clients[0]?.sessionId).toBe(world.players[2]?.id);
@@ -506,7 +512,10 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         world.players.every((player) => player !== null && !player.isBot),
       ).toBe(true);
       await expect(
-        server.connectTo(room, { protocolVersion: PROTOCOL_VERSION }),
+        server.connectTo(room, {
+          protocolVersion: PROTOCOL_VERSION,
+          code: 'ABC234',
+        }),
       ).rejects.toMatchObject({ code: CloseCode.RoomFull });
       expect(
         world.players.every((player) => player !== null && !player.isBot),
@@ -519,10 +528,12 @@ describe('AT-NET-10 real room seat lifecycle', () => {
     await withRoom<SeatHarnessRoom>(SeatHarnessRoom, async (room, server) => {
       const first = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
         name: 'Alice',
       });
       const observer = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
         name: 'Bob',
       });
       const seat = room.testWorld.players.findIndex(
@@ -607,6 +618,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         if (other?.isBot && other.id !== bot.id) other.stats.kos = 10;
       const replacement = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
         name: 'Carol',
       });
       expect(room.testWorld.players[seat]?.id).toBe(replacement.sessionId);
@@ -620,6 +632,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
     await withRoom<SeatHarnessRoom>(SeatHarnessRoom, async (room, server) => {
       const first = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
       });
       const countdownSeat = room.testWorld.players.findIndex(
         (player) => player?.id === first.sessionId,
@@ -633,6 +646,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         room.testWorld.tick + DERIVED.match.resultsTicks;
       const next = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
+        code: 'ABC234',
       });
       const resultsSeat = room.testWorld.players.findIndex(
         (player) => player?.id === next.sessionId,
@@ -658,15 +672,18 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         );
         const first = await server.connectTo(room, {
           protocolVersion: PROTOCOL_VERSION,
+          code: 'ABC234',
         });
         const observer = await server.connectTo(room, {
           protocolVersion: PROTOCOL_VERSION,
+          code: 'ABC234',
         });
         expect(room.testWorld.players[0]?.id).toBe(first.sessionId);
         await first.leave(true);
         expect(room.testWorld.players[0]).toBeNull();
         const next = await server.connectTo(room, {
           protocolVersion: PROTOCOL_VERSION,
+          code: 'ABC234',
         });
         expect(room.testWorld.players[0]?.id).toBe(next.sessionId);
         await next.leave(true);

@@ -4,7 +4,7 @@ import { CloseCode } from '@shiftborn/shared';
 import pino, { type Logger } from 'pino';
 import type { ServerConfig } from './config.js';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
-import { hasCurrentProtocolVersion } from './rooms/auth.js';
+import { hasCurrentProtocolVersion, hasValidRoomCode } from './rooms/auth.js';
 
 // NETWORK_PROTOCOL §14: maximum complete WebSocket message size is 4 KiB.
 export const MAX_WS_MESSAGE_BYTES = 4 * 1024;
@@ -63,20 +63,35 @@ export function createServer(
         {
           path: '/matchmake/:method/:roomName',
           middleware: createMiddleware(async (context) => {
-            if (hasCurrentProtocolVersion(context.body)) return;
-            return Response.json(
-              {
-                code: CloseCode.VersionMismatch,
-                error: 'Protocol version mismatch',
-              },
-              { status: 400 },
-            );
+            // Reconnect reuses the authenticated reservation and sends a token,
+            // not fresh join options with a version and room code.
+            if (context.params.method === 'reconnect') return;
+            if (!hasCurrentProtocolVersion(context.body))
+              return Response.json(
+                {
+                  code: CloseCode.VersionMismatch,
+                  error: 'Protocol version mismatch',
+                },
+                { status: 400 },
+              );
+            if (!hasValidRoomCode(context.body))
+              return Response.json(
+                { code: CloseCode.InvalidRoomCode, error: 'Invalid room code' },
+                { status: 400 },
+              );
           }),
         },
       ],
     },
   );
   // Pinned Colyseus merges trusted default options after client options.
-  server.define('arena', roomClass, { trustedBuildId: config.buildId });
+  server
+    .define('arena', roomClass, {
+      trustedBuildId: config.buildId,
+      trustedQuickplayMode: config.quickplayMode,
+      trustedBotDifficulty: config.botDifficulty,
+    })
+    .filterBy(['code'])
+    .sortBy({ clients: -1 });
   return server;
 }

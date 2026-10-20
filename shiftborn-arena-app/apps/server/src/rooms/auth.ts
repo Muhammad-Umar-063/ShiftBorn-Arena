@@ -2,11 +2,22 @@ import { ErrorCode, ServerError } from '@colyseus/core';
 import {
   CloseCode,
   PROTOCOL_VERSION,
+  isValidRoomCode,
   sanitizePlayerName,
 } from '@shiftborn/shared';
 
 export interface AuthenticatedPlayer {
   readonly name: string;
+  readonly code: string;
+}
+
+export function hasValidRoomCode(options: unknown): boolean {
+  return (
+    typeof options === 'object' &&
+    options !== null &&
+    !Array.isArray(options) &&
+    isValidRoomCode((options as Record<string, unknown>).code)
+  );
 }
 
 export function hasCurrentProtocolVersion(options: unknown): boolean {
@@ -31,10 +42,13 @@ export function authenticatePlayer(
       'Protocol version mismatch',
     );
   const fields = options as Record<string, unknown>;
+  const code = fields.code;
+  if (!isValidRoomCode(code))
+    throw new ServerError(CloseCode.InvalidRoomCode, 'Invalid room code');
   const name = sanitizePlayerName(fields.name, nameSeed);
   if (name === null)
     throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid player name');
-  return { name };
+  return { name, code };
 }
 
 /** T-024 reads only this validated auth result, never raw join options. */
@@ -43,5 +57,8 @@ export function authenticatedPlayer(
 ): AuthenticatedPlayer | null {
   if (typeof value !== 'object' || value === null) return null;
   const name = (value as Record<string, unknown>).name;
-  return typeof name === 'string' ? { name } : null;
+  const code = (value as Record<string, unknown>).code;
+  return typeof name === 'string' && isValidRoomCode(code)
+    ? { name, code }
+    : null;
 }

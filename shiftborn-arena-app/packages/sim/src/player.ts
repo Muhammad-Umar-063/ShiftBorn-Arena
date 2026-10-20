@@ -235,7 +235,11 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
   player.stats = createPlayerStats();
 }
 
-export function addPlayer(world: World, player: PlayerIdentity): void {
+export function addPlayer(
+  world: World,
+  player: PlayerIdentity,
+  options: { readonly waitForNextMatch?: boolean } = {},
+): void {
   if (
     !Number.isInteger(player.seat) ||
     player.seat < 0 ||
@@ -249,7 +253,7 @@ export function addPlayer(world: World, player: PlayerIdentity): void {
   if (world.players.some((current) => current?.id === player.id))
     throw new Error('duplicate player id');
   const record = createPlayer(player, world.tick);
-  if (world.phase !== Phase.Results) {
+  if (world.phase !== Phase.Results && !options.waitForNextMatch) {
     const spawnIndex = chooseSpawnPoint(world, player.id);
     const spawn = world.map.spawnPoints[spawnIndex];
     if (spawn === undefined) throw new RangeError('spawn point is missing');

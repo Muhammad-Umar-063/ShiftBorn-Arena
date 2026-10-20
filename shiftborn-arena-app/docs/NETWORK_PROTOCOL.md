@@ -137,6 +137,8 @@ ShardState
 
 Everything any client needs to predict the local player is in `PlayerState`. The full state goes to every client in the prototype (D-039).
 
+Bot difficulty uses D-063 codes in both existing fields: 0 Easy, 1 Normal, 2 Hard. `nextMode` uses 0 Frenzy and 1 Zone Frenzy.
+
 ---
 
 ## 5. Messages

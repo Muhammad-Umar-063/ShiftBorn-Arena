@@ -139,6 +139,7 @@ export const DERIVED = {
     reconnectTicks: secondsToTicks(BALANCE.net.reconnectS),
     afkWarnTicks: secondsToTicks(BALANCE.net.afkWarnS),
     afkBotTicks: secondsToTicks(BALANCE.net.afkBotS),
+    afkAimThresholdRad: degreesToRadians(BALANCE.net.afkAimThresholdDeg),
     smoothTicks: millisecondsToTicks(BALANCE.net.smoothMs),
   },
   backfill: { outOfCombatTicks: secondsToTicks(BALANCE.backfill.outOfCombatS) },
