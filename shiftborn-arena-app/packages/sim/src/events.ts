@@ -1,4 +1,5 @@
 import type {
+  AbilityId,
   Cause,
   Form,
   MorphDenialReason,
@@ -62,9 +63,26 @@ type SimpleEventName = Exclude<
   | 'shardPickup'
   | 'shardExpire'
   | 'clusterAnnounce'
+  | 'abilityStart'
+  | 'abilityEnd'
 >;
 export type SimEvent =
   | { [Name in SimpleEventName]: { readonly type: Name } }[SimpleEventName]
+  | {
+      readonly type: 'abilityStart';
+      readonly seat: number;
+      readonly ability: typeof AbilityId.Dash;
+      readonly startTick: number;
+      readonly endTick: number;
+      readonly dirX: number;
+      readonly dirY: number;
+    }
+  | {
+      readonly type: 'abilityEnd';
+      readonly seat: number;
+      readonly ability: typeof AbilityId.Dash;
+      readonly cancelled: 0 | 1;
+    }
   | {
       readonly type: 'morphStart';
       readonly seat: number;

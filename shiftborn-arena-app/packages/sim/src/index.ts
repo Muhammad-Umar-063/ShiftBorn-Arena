@@ -110,3 +110,4 @@ export {
   clearProjectiles,
   removeOwnedProjectiles,
 } from './projectiles.js';
+export * from './ability.js';

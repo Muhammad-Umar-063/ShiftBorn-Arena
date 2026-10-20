@@ -1,5 +1,6 @@
 import { BALANCE, DERIVED, Form, type Cause } from '@shiftborn/shared';
 import { emitEvent } from './events.js';
+import { cancelAbility } from './ability.js';
 import { createDeathDrop, deathFluxAmounts } from './deathDrops.js';
 import { gainFlux } from './flux.js';
 import { cancelMorphOnDeath } from './morph.js';
@@ -46,7 +47,7 @@ export function finalizeDeaths(world: World): void {
     )
       continue;
     cancelMorphOnDeath(victim);
-    victim.ability = null;
+    cancelAbility(world, victim, death.deathTick);
     victim.knockback = null;
     victim.stunEndTick = world.tick;
     victim.stats.deaths += 1;

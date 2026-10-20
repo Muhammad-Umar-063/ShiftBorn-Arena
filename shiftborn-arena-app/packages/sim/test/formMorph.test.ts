@@ -12,6 +12,7 @@ import {
 } from '@shiftborn/shared';
 import { describe, expect, it } from 'vitest';
 import { formStats } from '../src/formStats.js';
+import { startDash } from '../src/ability.js';
 import { createMapRuntime } from '../src/map/collisionIndex.js';
 import { integrateCircleMotion } from '../src/movement.js';
 import {
@@ -332,7 +333,7 @@ describe('GR-5 morphing', () => {
     player.morphReadyTick = world.tick + 100;
     player.stunEndTick = world.tick + 100;
     player.knockback = { vel: { x: 1, y: 0 }, endTick: world.tick + 100 };
-    player.ability = {};
+    player.ability = startDash(world.tick, { x: 1, y: 0 });
     const same = evaluateMorphRequest(
       player,
       Form.Runner,
@@ -340,6 +341,7 @@ describe('GR-5 morphing', () => {
       world.tick,
     );
     expect(same).toEqual({ kind: 'sameForm' });
+    player.ability = null;
     expect(step(world, [input(InputButton.MorphRunner, 1)], {})).toEqual([]);
     expect(player.flux).toBe(0);
   });
@@ -413,7 +415,7 @@ describe('GR-5 morphing', () => {
       reason: MorphDenialReason.Busy,
     });
     player.knockback = null;
-    player.ability = {};
+    player.ability = startDash(world.tick, { x: 1, y: 0 });
     expect(decide()).toEqual({
       kind: 'denied',
       reason: MorphDenialReason.Busy,
@@ -452,7 +454,7 @@ describe('GR-5 morphing', () => {
           player.knockback = { vel: { x: 1, y: 0 }, endTick: world.tick + 10 };
           break;
         case 'ability':
-          player.ability = {};
+          player.ability = startDash(world.tick, { x: 1, y: 0 });
           break;
       }
       expect(step(world, [input(InputButton.MorphBeast, 1)], {})).toEqual([

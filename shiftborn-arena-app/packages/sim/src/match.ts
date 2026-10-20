@@ -1,4 +1,5 @@
 import { DERIVED, Phase, type Mode } from '@shiftborn/shared';
+import { cancelAbility } from './ability.js';
 import { emitEvent } from './events.js';
 import { resetPlayerForMatch } from './player.js';
 import { clearProjectiles } from './projectiles.js';
@@ -79,7 +80,10 @@ export function advancePhase(world: World): void {
     clearProjectiles(world);
     // GR-5.8: match end drops unfinished morphs without a refund or morph event.
     for (const player of world.players) {
-      if (player !== null) player.morph = null;
+      if (player !== null) {
+        player.morph = null;
+        cancelAbility(world, player, world.tick);
+      }
     }
     emitEvent(world, { type: 'phase' });
   } else {

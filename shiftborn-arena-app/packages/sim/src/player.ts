@@ -14,6 +14,14 @@ import { removeOwnedProjectiles } from './projectiles.js';
 import { grantSpawnProtection } from './protection.js';
 import type { World } from './world.js';
 
+export type AbilityState = {
+  readonly id: typeof AbilityId.Dash;
+  readonly startTick: number;
+  readonly endTick: number;
+  readonly dirX: number;
+  readonly dirY: number;
+};
+
 export interface PlayerStats {
   kos: number;
   deaths: number;
@@ -56,7 +64,7 @@ export interface PlayerRecord {
   morphReadyTick: number;
   hpFrac: number;
   flux: number;
-  ability: Readonly<Record<string, never>> | null;
+  ability: AbilityState | null;
   abilityReadyTick: Record<Form, number>;
   weapon: Record<Form, { nextShotIn: number }>;
   heat: number;

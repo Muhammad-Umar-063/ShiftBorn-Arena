@@ -84,6 +84,8 @@ export const DERIVED = {
     dash: {
       durationTicks: secondsToTicks(BALANCE.abilities.dash.durationS),
       cooldownTicks: secondsToTicks(BALANCE.abilities.dash.cooldownS),
+      speedMps:
+        BALANCE.abilities.dash.distanceM / BALANCE.abilities.dash.durationS,
     },
     ramCharge: {
       windupTicks: secondsToTicks(BALANCE.abilities.ramCharge.windupS),

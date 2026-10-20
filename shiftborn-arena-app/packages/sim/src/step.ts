@@ -3,9 +3,18 @@ import {
   DERIVED,
   Form,
   InputButton,
+  Phase,
   type InputFrame,
 } from '@shiftborn/shared';
 import { advanceAim } from './aim.js';
+import {
+  advanceDash,
+  canStartAbility,
+  cancelAbility,
+  completeAbility,
+  dashDirection,
+  startDash,
+} from './ability.js';
 import { finalizeDeaths } from './death.js';
 import type { SimEvent } from './events.js';
 import { emitEvent } from './events.js';
@@ -18,6 +27,7 @@ import {
   morphKnockbackImmune,
 } from './morph.js';
 import { PHASE_POLICY } from './phasePolicy.js';
+import { endSpawnProtection } from './protection.js';
 import { respawnDuePlayers } from './respawn.js';
 import { advanceFluxAndShards } from './shards.js';
 import type { World } from './world.js';
@@ -145,10 +155,66 @@ const morphSystem: System = (world, context) => {
   }
 };
 
+const abilityStartSystem: System = (world, context) => {
+  for (let seat = 0; seat < world.players.length; seat += 1) {
+    const player = world.players[seat];
+    if (
+      player === null ||
+      player === undefined ||
+      ((context.pressedButtonsBySeat[seat] ?? 0) & InputButton.Ability) === 0 ||
+      !canStartAbility(player, world.phase, world.tick)
+    )
+      continue;
+    const direction = dashDirection(
+      context.directions[seat] ?? { x: 0, y: 0 },
+      player.aim,
+    );
+    const ability = startDash(world.tick, direction);
+    player.ability = ability;
+    player.vel = { x: 0, y: 0 };
+    endSpawnProtection(player, world.tick);
+    emitEvent(world, {
+      type: 'abilityStart',
+      seat,
+      ability: ability.id,
+      startTick: ability.startTick,
+      endTick: ability.endTick,
+      dirX: ability.dirX,
+      dirY: ability.dirY,
+    });
+  }
+};
+
+const abilityUpdateSystem: System = (world) => {
+  for (let seat = 0; seat < world.players.length; seat += 1) {
+    const player = world.players[seat];
+    if (player === null || player === undefined || player.ability === null)
+      continue;
+    if (
+      !player.alive ||
+      world.phase !== Phase.Playing ||
+      world.tick < player.stunEndTick ||
+      (player.knockback !== null && world.tick < player.knockback.endTick)
+    ) {
+      cancelAbility(world, player, world.tick);
+      continue;
+    }
+    if (world.tick >= player.ability.endTick) {
+      completeAbility(world, player, world.tick);
+      continue;
+    }
+    const result = advanceDash(player, player.ability, world.map, world.cover);
+    player.pos = result.pos;
+    player.vel = { x: 0, y: 0 };
+    if (result.clamped) emitEvent(world, { type: 'positionClamped' });
+  }
+};
+
 const movementSystem: System = (world, context) => {
   for (let seat = 0; seat < world.players.length; seat += 1) {
     const player = world.players[seat];
     if (player === null || player === undefined) continue;
+    if (player.ability !== null) continue;
     const frozen =
       !PHASE_POLICY[world.phase].movement ||
       !player.alive ||
@@ -181,7 +247,12 @@ const weaponsSystem: System = (world, context) => {
     const player = world.players[seat];
     if (player === null || player === undefined) continue;
     const held = context.fireHeldBySeat[seat] ?? false;
-    const permitted = canFireWeapon(player, world.phase, world.tick);
+    const permitted = canFireWeapon(
+      player,
+      world.phase,
+      world.tick,
+      player.ability?.id ?? null,
+    );
     const heat = advanceTurretHeat(
       player.heat,
       player.overheatEndTick,
@@ -256,8 +327,8 @@ export const TICK_SYSTEMS = [
   { name: 'phase', run: advancePhase },
   { name: 'inputs', run: inputSystem },
   { name: 'morph', run: morphSystem },
-  { name: 'abilityStart', run: emptySystem },
-  { name: 'abilityUpdate', run: emptySystem },
+  { name: 'abilityStart', run: abilityStartSystem },
+  { name: 'abilityUpdate', run: abilityUpdateSystem },
   { name: 'movement', run: movementSystem },
   { name: 'weapons', run: weaponsSystem },
   { name: 'projectiles', run: projectilesSystem },

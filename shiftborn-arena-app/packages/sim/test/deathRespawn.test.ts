@@ -13,6 +13,7 @@ import {
 } from '@shiftborn/shared';
 import { describe, expect, it } from 'vitest';
 import { applyDamage } from '../src/damage.js';
+import { startDash } from '../src/ability.js';
 import { counterForm, finalizeDeaths } from '../src/death.js';
 import {
   grantSpawnProtection,
@@ -275,7 +276,7 @@ describe('T-017 death, credit, respawn and protection', () => {
     victim.morph = { target: Form.Turret, endTick: 90 };
     victim.morphReadyTick = 400;
     victim.flux = 23;
-    victim.ability = {};
+    victim.ability = startDash(world.tick, { x: 1, y: 0 });
     victim.abilityReadyTick = { runner: 400, beast: 400, turret: 400 };
     victim.weapon.runner.nextShotIn = 4;
     victim.heat = 9;
@@ -383,7 +384,7 @@ describe('T-017 death, credit, respawn and protection', () => {
       const result = lethal(world, killer, victim, base);
       killer.form = Form.Runner;
       killer.alive = false;
-      victim.ability = {};
+      victim.ability = startDash(world.tick, { x: 1, y: 0 });
       victim.knockback = { vel: { x: 1, y: 1 }, endTick: 20 };
       victim.stunEndTick = 20;
       finalizeDeaths(world);
