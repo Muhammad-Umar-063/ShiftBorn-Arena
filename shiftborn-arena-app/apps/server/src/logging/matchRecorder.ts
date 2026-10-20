@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import type { Logger } from 'pino';
-import { Phase, type Controller, type InputFrame } from '@shiftborn/shared';
+import { Phase, type Controller, type InputFrame, type ReplayRoomState } from '@shiftborn/shared';
 import { hashWorld, type SimEvent, type World } from '@shiftborn/sim';
 import { replayCheckpoint, replayEnd, replayHeader, replayTick } from './inputLog.js';
 import { JsonlWriter } from './jsonlWriter.js';
@@ -30,6 +30,7 @@ export class MatchRecorder {
   private readonly inputWriter: JsonlWriter;
   private previousHash: string;
   private externalDirty = false;
+  private pendingRoomState: ReplayRoomState | null = null;
   private naturalEnd = false;
   private closePromise: Promise<void> | null = null;
 
@@ -52,18 +53,22 @@ export class MatchRecorder {
     this.inputWriter.write(replayHeader(world, metadata.buildId));
   }
 
-  markExternalChange(): void {
+  markExternalChange(roomState?: ReplayRoomState): void {
     this.externalDirty = true;
+    if (roomState !== undefined) this.pendingRoomState = roomState;
   }
 
   prepareStep(world: World): StepRecording {
     if (this.externalDirty) {
       const currentHash = hashWorld(world);
-      if (currentHash !== this.previousHash) {
-        this.inputWriter.write(replayCheckpoint(world, this.previousHash));
+      if (currentHash !== this.previousHash || this.pendingRoomState !== null) {
+        this.inputWriter.write(replayCheckpoint(
+          world, this.previousHash, this.pendingRoomState ?? undefined,
+        ));
         this.previousHash = currentHash;
       }
       this.externalDirty = false;
+      this.pendingRoomState = null;
     }
     return {
       eventTick: world.tick,
@@ -109,8 +114,10 @@ export class MatchRecorder {
   close(world: World): Promise<void> {
     if (this.closePromise !== null) return this.closePromise;
     const currentHash = hashWorld(world);
-    if (currentHash !== this.previousHash) {
-      this.inputWriter.write(replayCheckpoint(world, this.previousHash));
+    if (currentHash !== this.previousHash || this.pendingRoomState !== null) {
+      this.inputWriter.write(replayCheckpoint(
+        world, this.previousHash, this.pendingRoomState ?? undefined,
+      ));
       this.previousHash = currentHash;
     }
     this.inputWriter.write(replayEnd(world, this.naturalEnd));

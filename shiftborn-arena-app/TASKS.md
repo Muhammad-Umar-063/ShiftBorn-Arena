@@ -51,8 +51,8 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-026 | Connection lifecycle: drop, reconnect, hidden tab, AFK, leave, shutdown | T-024 | M | DONE (2026-10-20) |
 | T-027 | RTT probes, clock sync and spawn advance wiring | T-022 | S | DONE (2026-10-20) |
 | T-028 | Match log, input log and replay tool | T-021 | M | DONE (2026-10-21) |
-| T-029 | Dev cheats | T-021 | S | TODO |
-| T-030 | Client shell, screens and settings storage | T-006, T-007 | M | TODO |
+| T-029 | Dev cheats | T-021 | S | DONE (2026-10-21) |
+| T-030 | Client shell, screens and settings storage | T-006, T-007 | M | DONE (2026-10-21) |
 | T-031 | Client connection, clock and netsim | T-030, T-023, T-027 | M | TODO |
 | T-032 | Renderer, greybox map and camera | T-030, T-004 | L | TODO |
 | T-033 | Entity views and effects | T-032 | M | TODO |
@@ -683,3 +683,5 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-026 | M | Not tracked | 2026-10-20 | Retained human sessions and input sequences across 30-second reconnects; visibility and tick-based AFK proxy handoff; final leave, host handover, room disposal, and graceful shutdown with notice, RESULTS wait cap, and 4004 close. Proxy input stays neutral until T-055. |
 | T-027 | S | Not tracked | 2026-10-20 | Private monotonic pong anchors and tick-scheduled probes; identity-owned bounded median RTT; measured GR-7.9 spawn advance through ArenaRoom. Production client clock sync remains T-031. |
 | T-028 | M | Not tracked | 2026-10-21 | Stage A match JSONL, gzipped authoritative input log, lifecycle checkpoints, match rotation and shutdown flush; replay CLI verifies every tick and final or unfinished-prefix hash. Ranking, analysis and full telemetry remain T-044, T-067 and T-130. |
+| T-029 | S | Not tracked | 2026-10-21 | Trusted DEV_CHEATS gate, strict private dev commands at the next tick, administrative player and room mutations, and replayable command checkpoints. Browser console remains T-038 and deployment validation remains AT-DEP-04. |
+| T-030 | M | Not tracked | 2026-10-21 | Plain-TS Landing and connection-state screens, safe names and room intents, WebGL 2 gate, versioned local settings, and responsive greybox UI. AT-UI-01/10 pass without a server. Networking is T-031, rendering T-032, full controls card/menu T-065, and settings integration T-122. |

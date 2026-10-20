@@ -27,8 +27,8 @@ module.exports = tseslint.config(
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
   {
-    files: ['apps/client/vite.config.ts'],
-    // Vite loads this configuration through its required default export.
+    files: ['apps/client/vite.config.ts', 'apps/client/playwright.config.ts'],
+    // Vite and Playwright load these configurations through required default exports.
     rules: { 'no-restricted-syntax': 'off' },
   },
   {

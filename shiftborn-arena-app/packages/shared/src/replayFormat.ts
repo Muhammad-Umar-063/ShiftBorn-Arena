@@ -1,4 +1,5 @@
 import type { Controller, Mode } from './constants.js';
+import type { BotDifficultyCode } from './botDifficulty.js';
 import type { InputFrame } from './protocol.js';
 
 /** Internal match replay format; independent of the network protocol. */
@@ -25,6 +26,22 @@ export interface ReplayCheckpoint {
   readonly beforeHash: string;
   readonly afterHash: string;
   readonly snapshot: unknown;
+  /** Server-owned command state; applied inputs remain the replay authority. */
+  readonly roomState?: ReplayRoomState;
+}
+
+export interface ReplayRoomState {
+  readonly active: {
+    readonly botFill: boolean;
+    readonly botDifficulty: BotDifficultyCode;
+    readonly nextMode: Mode;
+  };
+  readonly pending: {
+    readonly botFill: boolean;
+    readonly botDifficulty: BotDifficultyCode;
+    readonly nextMode: Mode;
+  };
+  readonly botsFrozen: boolean;
 }
 
 export interface ReplayTick {

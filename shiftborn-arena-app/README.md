@@ -10,7 +10,7 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-028. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-029.
+**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-030. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-031.
 
 T-023 added version and name authentication, authoritative welcome data, and ordered per-tick event batches. With the pinned Colyseus SDK, a protocol mismatch returns HTTP 400 with JSON `code: 4000`; the SDK join helper exposes HTTP 400 as its error code. This transport behavior was approved for T-023.
 
@@ -23,6 +23,10 @@ T-026 retains human seats and input history through a 30-second reconnect window
 T-027 replies to private client pings with authoritative tick and monotonic server-time anchors. Private probes measure each connected human's RTT every two seconds; the median of the last ten accepted samples supplies GR-7.9 projectile spawn advance. Production client clock sync, ping scheduling and network simulation remain T-031.
 
 T-028 writes the Stage A match log and a gzipped authoritative input log for each match under `MATCH_LOG_DIR/YYYY-MM-DD/`. Run `pnpm replay <match-log>` against a `<matchId>.jsonl` file to replay its sibling input log and verify every simulation tick and the final hash. Full ranking and telemetry remain T-044 and T-130.
+
+T-029 adds server dev commands behind `DEV_CHEATS=1`; the default remains `0`. Valid commands execute at the next room tick and produce private results and replayable checkpoints. The browser dev console remains T-038.
+
+T-030 adds a responsive browser shell with Landing, Connecting, InMatch and Error screen states, local connection intents, a WebGL 2 capability gate, safe generated player names, room-code entry and link handling, and versioned settings in localStorage. The Play/Create/Join actions currently enter a local Connecting state and can be cancelled or timed out; T-031 supplies networking, clock sync and netsim. T-032 supplies rendering, T-065 the full controls card and in-match menu, and T-122 applies saved settings to gameplay, rendering and audio.
 
 | Stage | Goal | Gate |
 |---|---|---|
@@ -89,7 +93,7 @@ Start both the watched server and Vite client with one command:
 pnpm dev
 ```
 
-Open <http://localhost:5173> to see the temporary Shiftborn Arena development landing shell and build ID. `http://localhost:2567/healthz` checks the local server; Vite proxies the same route at `http://localhost:5173/healthz`. The authoritative ArenaRoom now mirrors simulation state and accepts validated input for bound human seats. Player seat assignment, bots, joining, matchmaking and later lifecycle behavior remain future tasks. The name and Play flow belongs to T-030.
+Open <http://localhost:5173> for the greybox client shell. You can edit a generated player name, start a local Play/Create/Join intent, follow `?room=CODE` links, read How to play, and change persistent local settings. A connection attempt shows Connecting and then times out after ten seconds until T-031 wires it to Colyseus. `http://localhost:2567/healthz` checks the local server; Vite proxies the same route at `http://localhost:5173/healthz`.
 
 Useful debug controls, when their tasks are complete:
 

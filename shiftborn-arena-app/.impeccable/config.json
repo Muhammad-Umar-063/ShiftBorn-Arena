@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "arial",
+        "files": [
+          "apps/client/src/ui/styles.css"
+        ],
+        "createdAt": "2026-10-20T20:36:48.643Z",
+        "reason": "T-030 requires system fonts; Arial Black is intentionally limited to the wordmark and documented in DESIGN.md."
+      }
+    ]
+  }
+}

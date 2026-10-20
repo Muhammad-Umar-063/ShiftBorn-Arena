@@ -1,7 +1,7 @@
 import {
   BALANCE, REPLAY_FORMAT_VERSION, balanceHash,
   type Controller, type InputFrame, type ReplayCheckpoint,
-  type ReplayEnd, type ReplayHeader, type ReplayTick,
+  type ReplayEnd, type ReplayHeader, type ReplayRoomState, type ReplayTick,
 } from '@shiftborn/shared';
 import { hashWorld, snapshotWorld, type World } from '@shiftborn/sim';
 import { copyAppliedInputs } from './matchLog.js';
@@ -17,11 +17,12 @@ export function replayHeader(world: World, buildId: string): ReplayHeader {
 }
 
 export function replayCheckpoint(
-  world: World, beforeHash: string,
+  world: World, beforeHash: string, roomState?: ReplayRoomState,
 ): ReplayCheckpoint {
   return {
     kind: 'checkpoint', t: world.tick, beforeHash,
     afterHash: hashWorld(world), snapshot: snapshotWorld(world),
+    ...(roomState === undefined ? {} : { roomState }),
   };
 }
 

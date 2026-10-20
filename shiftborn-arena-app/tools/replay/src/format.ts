@@ -1,6 +1,7 @@
 import {
   AimSource, BALANCE, Controller, DERIVED, Form, Mode, REPLAY_FORMAT_VERSION,
   UNUSED_BUTTON_MASK, balanceHash, isValidClientInputFrame,
+  isBotDifficultyCode,
   type InputFrame, type ReplayCheckpoint, type ReplayEnd,
   type ReplayHeader, type ReplayTick,
 } from '@shiftborn/shared';
@@ -55,6 +56,19 @@ function fixedArray(value: unknown): value is unknown[] {
   return Array.isArray(value) && value.length === BALANCE.match.seats;
 }
 
+function roomSettings(value: unknown): boolean {
+  return object(value) && Object.keys(value).length === 3 &&
+    typeof value.botFill === 'boolean' &&
+    isBotDifficultyCode(value.botDifficulty) &&
+    (value.nextMode === Mode.Frenzy || value.nextMode === Mode.ZoneFrenzy);
+}
+
+function roomState(value: unknown): boolean {
+  return object(value) && Object.keys(value).length === 3 &&
+    roomSettings(value.active) && roomSettings(value.pending) &&
+    typeof value.botsFrozen === 'boolean';
+}
+
 export function parseHeader(value: unknown): ReplayHeader {
   if (!object(value) || value.kind !== 'header' ||
     value.version !== REPLAY_FORMAT_VERSION ||
@@ -82,7 +96,8 @@ export function parseCheckpoint(value: unknown): ReplayCheckpoint {
   if (!object(value) || value.kind !== 'checkpoint' ||
     !integer(value.t) || value.t < 0 ||
     !hash(value.beforeHash) || !hash(value.afterHash) ||
-    !isWorldSnapshot(value.snapshot) || value.snapshot.tick !== value.t)
+    !isWorldSnapshot(value.snapshot) || value.snapshot.tick !== value.t ||
+    (Object.hasOwn(value, 'roomState') && !roomState(value.roomState)))
     throw new TypeError('invalid replay checkpoint');
   return value as unknown as ReplayCheckpoint;
 }

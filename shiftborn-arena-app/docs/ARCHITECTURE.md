@@ -434,7 +434,7 @@ T-044 supplies authoritative ranking and final stat accounting. T-130 extends th
 
 The sibling input file is `MATCH_LOG_DIR/YYYY-MM-DD/<matchId>.inputs.jsonl.gz`, compressed with Node gzip. Its internal format version is separate from `PROTOCOL_VERSION`. It contains one header with the trusted map ID, `(roomSeed, matchIndex)`, balance version/hash, initial detached world snapshot and initial hash; a pre-step checkpoint only when server-owned gameplay state changed outside `sim.step`; one tick record per authoritative step; and one end record. Tick records contain all eight applied frames or null, all eight controllers or null, exact merged button edges, exact server-measured spawn-advance ticks and the post-step `hashWorld` result. They record repeated applied frames, not raw packets.
 
-A checkpoint stores a detached gameplay snapshot with its preceding and replacement hashes. Replay verifies the preceding hash before applying it and rebuilds static map runtime data from the trusted map ID. Results ticks remain in the same input file until the next COUNTDOWN starts. A natural `match_end.finalHash` is checked at the PLAYING-to-RESULTS tick; the input end record checks the final recorded prefix, including later RESULTS ticks. An early disposal writes no fake `match_end` and its end record checks the unfinished prefix. `pnpm replay <match-log>` validates both files, executes each real sim step and stops at the first divergent tick with expected and actual hashes. Input logs are used for bug reports; T-130 owns retention policy.
+A checkpoint stores a detached gameplay snapshot with its preceding and replacement hashes. Replay verifies the preceding hash before applying it and rebuilds static map runtime data from the trusted map ID. A T-029 command checkpoint also records validated active and pending room settings and the bot-freeze flag; room-only changes can therefore be recorded even when the gameplay hash is unchanged. Replay uses the recorded applied frames for the following step and never needs raw command text. Results ticks remain in the same input file until the next COUNTDOWN starts. A natural `match_end.finalHash` is checked at the PLAYING-to-RESULTS tick; the input end record checks the final recorded prefix, including later RESULTS ticks. An early disposal writes no fake `match_end` and its end record checks the unfinished prefix. `pnpm replay <match-log>` validates both files, executes each real sim step and stops at the first divergent tick with expected and actual hashes. Input logs are used for bug reports; T-130 owns retention policy.
 
 ### 9.4 Sessions
 
@@ -474,7 +474,20 @@ Logs store the chosen display name and random ids only. No IP addresses in match
 | Network simulation | URL `?lag=150&jitter=20&loss=2` | Adds delay, jitter (ms) and loss (%) on the client in both directions (`docs/NETWORK_PROTOCOL.md` §12) |
 | Dev console | Backtick key, only when the server has `DEV_CHEATS=1` | Commands below |
 
-Dev commands (rejected unless `DEV_CHEATS=1`): `/flux <n>`, `/hp <fraction>`, `/form <runner|beast|turret>` (instant, no cost), `/kill`, `/endmatch`, `/bots <n>`, `/difficulty <easy|normal|hard>`, `/mode <frenzy|zone>`, `/dummies <on|off> [speed]` (bots stop shooting and strafe on fixed paths, for the fairness test), `/freeze` (bots stop moving), `/tp <x> <y>`.
+The server accepts numeric `devCmd` messages only when its validated `DEV_CHEATS=1` setting is on. It parses exact lowercase commands, queues them in arrival order, and applies them before the next normal simulation step. The sender alone receives a private `devResult`. With cheats off, commands are dropped and counted by the existing abuse limit. Client join options cannot enable cheats. The browser console and `/dummies` are later tasks T-038 and T-133.
+
+| Command | Server effect |
+|---|---|
+| `/flux <n>` | Set the sender's Flux from 0 to `flux.max` and rebase regeneration. |
+| `/hp <fraction>` | Set living health from 0 to 1; zero uses administrative elimination. |
+| `/form <runner\|beast\|turret>` | Switch immediately without Flux cost or a morph event; cancel an active movement ability. |
+| `/kill` | Administratively eliminate the sender, with normal respawn delay and no combat credit or shard drop. |
+| `/endmatch` | During PLAYING, make the next normal phase step enter RESULTS. |
+| `/bots <n>` | Set the current ordinary bot count, preserving humans; remove highest seats and fill lowest empty seats. |
+| `/difficulty <easy\|normal\|hard>` | Update active and pending development bot difficulty using the approved wire codes. |
+| `/mode <frenzy\|zone>` | Set the pending mode for the next COUNTDOWN. |
+| `/freeze` | Toggle neutral input and stopped movement for ordinary bots only. |
+| `/tp <x> <y>` | Move the sender to a resolved legal map position and clear forced movement. |
 
 ---
 

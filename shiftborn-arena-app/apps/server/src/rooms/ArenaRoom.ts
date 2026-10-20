@@ -15,6 +15,7 @@ import {
   isValidRoomCode,
   type EncodedEvent,
   type InputFrame,
+  type ReplayRoomState,
 } from '@shiftborn/shared';
 import {
   addPlayer,
@@ -22,11 +23,16 @@ import {
   removePlayer,
   setController,
   setMode,
+  stopOrdinaryBots,
   step,
   type SimEvent,
   type World,
 } from '@shiftborn/sim';
 import pino from 'pino';
+import {
+  decodeDevPayload, executeDevCommand, parseDevCommand,
+  type DevCommand,
+} from '../dev/cheats.js';
 import { decodeClientStats } from '../logging/matchLog.js';
 import { MatchRecorder } from '../logging/matchRecorder.js';
 import { InputQueue } from '../net/inputQueue.js';
@@ -79,6 +85,13 @@ interface InputBinding {
   readonly queue: InputQueue;
 }
 
+interface QueuedDevCommand {
+  readonly client: Client;
+  readonly playerId: string;
+  readonly seat: number;
+  readonly command: DevCommand;
+}
+
 /** D-061: authoritative room with a narrow human input source seam. */
 export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
   protected world!: World;
@@ -111,6 +124,9 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
   private matchLogDir = './data/matches';
   private recorder: MatchRecorder | null = null;
   private readonly pendingRecorderCloses = new Set<Promise<void>>();
+  private devCheatsEnabled = false;
+  private readonly queuedDevCommands: QueuedDevCommand[] = [];
+  private botsFrozen = false;
   protected readonly probeTracker = new ProbeTracker(() => this.monotonicNowMs());
   private probeDisposed = false;
   private shuttingDown = false;
@@ -132,12 +148,14 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     readonly trustedQuickplayMode?: QuickplayMode;
     readonly trustedBotDifficulty?: BotDifficulty;
     readonly trustedMatchLogDir?: string;
+    readonly trustedDevCheats?: boolean;
   }): void {
     if (!isValidRoomCode(options.code))
       throw new ServerError(CloseCode.InvalidRoomCode, 'Invalid room code');
     this.roomCode = options.code;
     this.trustedBuildId = options.trustedBuildId;
     this.matchLogDir = options.trustedMatchLogDir ?? this.matchLogDir;
+    this.devCheatsEnabled = options.trustedDevCheats === true;
     this.quickplayMode = options.trustedQuickplayMode ?? 'frenzy';
     this.activeSettings = {
       botFill: this.botFillEnabled,
@@ -269,6 +287,28 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       }
       this.recorder?.recordClientStats(this.world.tick, client.sessionId, stats);
     });
+    this.onMessage(ClientMessageId.DevCmd, (client, payload: unknown) => {
+      if (!this.devCheatsEnabled || !this.isAttachedHuman(client)) {
+        this.noteInvalidMessage(client);
+        return;
+      }
+      const commandText = decodeDevPayload(payload);
+      if (commandText === null) {
+        this.noteInvalidMessage(client);
+        return;
+      }
+      const parsed = parseDevCommand(commandText);
+      if (!parsed.ok) {
+        client.send(ServerMessageId.DevResult, { ok: false, text: parsed.text });
+        return;
+      }
+      const session = this.sessions.get(client.sessionId);
+      if (session === undefined) return;
+      this.queuedDevCommands.push({
+        client, playerId: session.id, seat: session.seat,
+        command: parsed.command,
+      });
+    });
     this.onMessage(ClientMessageId.HostSettings, (client, payload: unknown) => {
       const settings = decodeHostSettings(payload);
       const queue = this.inputBySession.get(client.sessionId)?.queue;
@@ -359,6 +399,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       this.world.tick >= this.world.phaseEndTick;
     if (nextCountdown) this.prepareNextMatch();
     this.restoreAfkWakes();
+    this.executeQueuedDevCommands();
     const inputs: InputFrame[] = [];
     const inputPressedButtonsBySeat: (number | undefined)[] = [];
     const spawnAdvanceTicksBySeat: number[] = Array.from(
@@ -377,7 +418,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
         const sequence =
           this.botSequences.get(player.id) ??
           Math.max(player.lastInputSeq, player.lastButtonInputSeq, 0) + 1;
-        inputs[seat] = neutralBotFrame(player, sequence);
+        inputs[seat] = this.botInputFor(player, sequence);
         this.botSequences.set(player.id, sequence + 1);
         continue;
       }
@@ -664,8 +705,8 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     );
   }
 
-  protected markReplayCheckpoint(): void {
-    this.recorder?.markExternalChange();
+  protected markReplayCheckpoint(roomState?: ReplayRoomState): void {
+    this.recorder?.markExternalChange(roomState);
   }
 
   private trackRecorderClose(promise: Promise<void>): void {
@@ -741,6 +782,98 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     }
     this.updateMirrorContext();
     this.markReplayCheckpoint();
+  }
+
+  /** T-051 can replace this seam while preserving the room-owned freeze gate. */
+  protected botInputFor(player: NonNullable<World['players'][number]>, sequence: number): InputFrame {
+    if (this.botsFrozen) return neutralBotFrame(player, sequence);
+    return neutralBotFrame(player, sequence);
+  }
+
+  protected botsAreFrozen(): boolean {
+    return this.botsFrozen;
+  }
+
+  private setDevBotCount(count: number): boolean {
+    const humans = this.world.players.filter((player) => player !== null && !player.isBot).length;
+    if (count > BALANCE.match.seats - humans) return false;
+    let current = this.world.players.filter((player) => player?.isBot).length;
+    for (let seat = this.world.players.length - 1; seat >= 0 && current > count; seat -= 1) {
+      const player = this.world.players[seat];
+      if (player?.isBot !== true) continue;
+      removePlayer(this.world, player.id);
+      this.botSequences.delete(player.id);
+      this.combatActivity.clearSeat(seat);
+      current -= 1;
+    }
+    for (let seat = 0; seat < this.world.players.length && current < count; seat += 1) {
+      if (this.world.players[seat] !== null) continue;
+      addPlayer(this.world, botIdentity(this.nextBotSerial++, seat));
+      this.combatActivity.clearSeat(seat);
+      current += 1;
+    }
+    return true;
+  }
+
+  private executeQueuedDevCommands(): void {
+    if (this.queuedDevCommands.length === 0) return;
+    const queued = this.queuedDevCommands.splice(0);
+    const previousEvents = this.world.events.length;
+    let changed = false;
+    for (const item of queued) {
+      const session = this.sessions.get(item.playerId);
+      if (session?.client !== item.client || session.seat !== item.seat ||
+        !this.isAttachedHuman(item.client)) continue;
+      const player = this.world.players[item.seat];
+      if (player?.id !== item.playerId || player.isBot) continue;
+      try {
+        const result = executeDevCommand(item.command, {
+          world: this.world,
+          player,
+          setBotCount: (count) => this.setDevBotCount(count),
+          setDifficulty: (value) => {
+            const botDifficulty = difficultyCode(value);
+            this.activeSettings = { ...this.activeSettings, botDifficulty };
+            this.pendingSettings = { ...this.pendingSettings, botDifficulty };
+            this.updateMirrorContext();
+          },
+          setMode: (mode) => {
+            this.pendingSettings = { ...this.pendingSettings, nextMode: mode };
+            this.quickplayMode = mode === Mode.Frenzy ? 'frenzy' : 'zoneFrenzy';
+            setMode(this.world, mode);
+            this.settingsDirty = true;
+            this.updateMirrorContext();
+          },
+          toggleFreeze: () => {
+            this.botsFrozen = !this.botsFrozen;
+            if (this.botsFrozen) stopOrdinaryBots(this.world);
+            return this.botsFrozen;
+          },
+        });
+        if (result.mutated) changed = true;
+        if (this.isAttachedHuman(item.client))
+          item.client.send(ServerMessageId.DevResult, { ok: result.ok, text: result.text });
+      } catch (error: unknown) {
+        this.warningLogger.error({ err: error, matchId: this.world.matchId,
+          tick: this.world.tick, kind: item.command.kind }, 'dev_command_error');
+        if (this.isAttachedHuman(item.client))
+          item.client.send(ServerMessageId.DevResult, { ok: false, text: 'Command failed.' });
+      }
+    }
+    if (changed) {
+      this.markReplayCheckpoint({
+        active: { ...this.activeSettings },
+        pending: { ...this.pendingSettings },
+        botsFrozen: this.botsFrozen,
+      });
+      this.mirrorNow();
+    }
+    const events = this.world.events.slice(previousEvents);
+    if (events.length > 0) this.broadcastEncodedEventsAtCurrentTick(encodeSimEvents(events));
+  }
+
+  protected pendingDevCommandCount(): number {
+    return this.queuedDevCommands.length;
   }
 
   private updateQuickplayLock(): void {
@@ -945,6 +1078,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
 
   async onDispose(): Promise<void> {
     this.probeDisposed = true;
+    this.queuedDevCommands.length = 0;
     this.probeTracker.clear();
     this.fixedLoop?.stop();
     this.finishResultsWait();

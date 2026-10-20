@@ -44,6 +44,10 @@ export class CombatActivity {
   snapshot(): readonly (number | undefined)[] {
     return [...this.lastCombatTickBySeat];
   }
+
+  clearSeat(seat: number): void {
+    this.lastCombatTickBySeat[seat] = undefined;
+  }
 }
 
 export function isOutOfCombat(
