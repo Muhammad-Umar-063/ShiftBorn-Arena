@@ -58,6 +58,10 @@ type SimpleEventName = Exclude<
   | 'overheat'
   | 'death'
   | 'respawn'
+  | 'shardSpawn'
+  | 'shardPickup'
+  | 'shardExpire'
+  | 'clusterAnnounce'
 >;
 export type SimEvent =
   | { [Name in SimpleEventName]: { readonly type: Name } }[SimpleEventName]
@@ -91,6 +95,19 @@ export type SimEvent =
       readonly seat: number;
       readonly pos: Vec2;
       readonly protectedEndTick: number;
+    }
+  | { readonly type: 'shardSpawn'; readonly shardId: number }
+  | {
+      readonly type: 'shardPickup';
+      readonly shardId: number;
+      readonly seat: number;
+      readonly value: number;
+    }
+  | { readonly type: 'shardExpire'; readonly shardId: number }
+  | {
+      readonly type: 'clusterAnnounce';
+      readonly pointIndex: number;
+      readonly spawnTick: number;
     }
   | {
       readonly type: 'morphDenied';

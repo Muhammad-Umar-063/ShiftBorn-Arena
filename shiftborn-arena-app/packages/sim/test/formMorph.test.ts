@@ -88,6 +88,7 @@ describe('GR-5 morphing', () => {
   it('AT-MORPH-01 spends immediately and completes on the exact duration tick', () => {
     const { world, player } = playingWorld();
     const balanceBefore = structuredClone(BALANCE);
+    const fluxBefore = player.flux;
     const startTick = world.tick;
     const started = [...step(world, [input(InputButton.MorphBeast, 1)], {})];
     const endTick = startTick + DERIVED.morph.durationTicks;
@@ -101,7 +102,10 @@ describe('GR-5 morphing', () => {
         endTick,
       },
     ]);
-    expect(player.flux).toBe(BALANCE.flux.start - BALANCE.morph.costBeast);
+    expect(player.flux).toBeCloseTo(
+      fluxBefore - BALANCE.morph.costBeast + DERIVED.flux.regenPerTick,
+      12,
+    );
     expect(player.form).toBe(Form.Runner);
     expect(player.morph).toEqual({ target: Form.Beast, endTick });
     while (world.tick < endTick) {
@@ -130,7 +134,7 @@ describe('GR-5 morphing', () => {
         endTick: world.tick - 1 + DERIVED.morph.durationTicks,
       },
     ]);
-    expect(player.flux).toBe(0);
+    expect(player.flux).toBe(DERIVED.flux.regenPerTick);
   });
 
   it('AT-MORPH-03 preserves hpFrac exactly across a max-HP change', () => {
@@ -221,7 +225,7 @@ describe('GR-5 morphing', () => {
     expect(step(world, [input(InputButton.MorphTurret, 3)], {})[0]?.type).toBe(
       'morphStart',
     );
-    expect(player.flux).toBe(0);
+    expect(player.flux).toBe(DERIVED.flux.regenPerTick);
   });
 
   it('AT-MORPH-07 keeps old-form stats, movement, knockback immunity, and cooldown state', () => {
@@ -594,7 +598,7 @@ describe('GR-5 morphing', () => {
       ),
     ).toEqual([]);
     expect(player.morph).toBeNull();
-    expect(player.flux).toBe(flux);
+    expect(player.flux).toBeCloseTo(flux + DERIVED.flux.regenPerTick, 12);
     step(world, [input(0, 2)], {});
     expect(step(world, [input(InputButton.MorphBeast, 3)], {})[0]?.type).toBe(
       'morphStart',

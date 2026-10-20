@@ -61,6 +61,24 @@ export {
 export type { MorphCompletion, MorphDecision } from './morph.js';
 export { applyDamage } from './damage.js';
 export { counterForm, finalizeDeaths } from './death.js';
+export {
+  createDeathDrop,
+  deathFluxAmounts,
+  insideBlockingGeometry,
+  nudgeDropPoint,
+} from './deathDrops.js';
+export { gainFlux, regenerateFlux } from './flux.js';
+export {
+  ShardKind,
+  spawnShard,
+  spawnCluster,
+  setupClusters,
+  pickUpShards,
+  expireDroppedShards,
+  advanceClusterSchedule,
+  advanceFluxAndShards,
+} from './shards.js';
+export type { ClusterPhase } from './shards.js';
 export { respawnPlayer, respawnDuePlayers } from './respawn.js';
 export {
   isSpawnProtected,

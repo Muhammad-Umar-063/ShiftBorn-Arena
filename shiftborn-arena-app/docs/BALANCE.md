@@ -117,6 +117,7 @@ Tuning ranges: damage ±20%, rate ±20%, range ±15%, projectile speed ±20%. Ke
 | `shards.announceS` | 3 | s | 90 | 2 to 5 |
 | `shards.pickupExtraRadiusM` | 0.5 | m | | 0.3 to 0.8 |
 | `shards.dropRingRadiusM` | 1.2 | m | | |
+| `shards.dropNudgeStepM` | 0.1 | m | | Fixed GR-10.9 geometry nudge; exposed approved value |
 | `shards.dropLifetimeS` | 15 | s | 450 | 10 to 30 |
 | `status.ccImmunityS` | 2 | s | 60 | 1 to 3 |
 | `cover.rebuildS` | 30 | s | 900 | 20 to 45 |
@@ -161,7 +162,7 @@ Tuning ranges: damage ±20%, rate ±20%, range ±15%, projectile speed ±20%. Ke
 // packages/shared/src/balance.ts
 // Single source of truth for every gameplay number. Human units. See docs/BALANCE.md.
 export const BALANCE = {
-  version: 'proto-1',
+  version: 'proto-2',
   tick: { rateHz: 30, patchRateHz: 20 },
   match: {
     seats: 8, countdownS: 3, durationS: 180, resultsS: 15, lateJoinCutoffS: 60,
@@ -199,7 +200,7 @@ export const BALANCE = {
   flux: { max: 100, start: 60, regenPerS: 1, smallShard: 5, largeShard: 15, ko: 20, assist: 10,
           deathDropFrac: 0.4, respawnFloor: 40 },
   shards: { activeClusters: 3, clusterSmall: 4, clusterLarge: 1, clusterOffsetM: 1.5, respawnDelayS: 5,
-            announceS: 3, pickupExtraRadiusM: 0.5, dropRingRadiusM: 1.2, dropLifetimeS: 15 },
+            announceS: 3, pickupExtraRadiusM: 0.5, dropRingRadiusM: 1.2, dropNudgeStepM: 0.1, dropLifetimeS: 15 },
   cover: { rebuildS: 30 },
   zoneFrenzy: { koPoints: 5, zoneRadiusM: 6, moveEveryS: 45, previewS: 10, pointsPerS: 1 },
   keyboardAim: { turnDegPerS: 720 },
@@ -283,3 +284,4 @@ Design target: 4 to 8 morphs per human per match (H1). Levers in order: `morph.c
 | Version | Date | Change | Reason | Decision |
 |---|---|---|---|---|
 | proto-1 | 2026-10-14 | Initial values from GDD v2.1 plus prototype additions | Prototype start | D-002 |
+| proto-2 | 2026-10-20 | Exposed `shards.dropNudgeStepM = 0.1` from GR-10.9 | Missing approved key; no existing value tuned | GR-10.9 |

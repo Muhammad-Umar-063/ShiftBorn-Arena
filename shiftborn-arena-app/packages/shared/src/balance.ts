@@ -1,7 +1,7 @@
 // packages/shared/src/balance.ts
 // Single source of truth for every gameplay number. Human units. See docs/BALANCE.md.
 export const BALANCE = {
-  version: 'proto-1',
+  version: 'proto-2',
   tick: { rateHz: 30, patchRateHz: 20 },
   match: {
     seats: 8,
@@ -133,6 +133,7 @@ export const BALANCE = {
     announceS: 3,
     pickupExtraRadiusM: 0.5,
     dropRingRadiusM: 1.2,
+    dropNudgeStepM: 0.1,
     dropLifetimeS: 15,
   },
   cover: { rebuildS: 30 },

@@ -66,6 +66,9 @@ export interface PlayerRecord {
   knockback: { vel: Vec2; endTick: number } | null;
   protectedEndTick: number;
   respawnTick: number;
+  respawnFlux: number | null;
+  fluxRegenAnchor: number;
+  fluxRegenTicks: number;
   damageLog: { attackerId: string; tick: number; amount: number }[];
   lastInputSeq: number;
   lastButtonInputSeq: number;
@@ -173,6 +176,9 @@ export function createPlayer(
     knockback: null,
     protectedEndTick: tick,
     respawnTick: tick,
+    respawnFlux: null,
+    fluxRegenAnchor: 0,
+    fluxRegenTicks: 0,
     damageLog: [],
     lastInputSeq: -1,
     lastButtonInputSeq: -1,
@@ -213,6 +219,9 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
   player.knockback = null;
   player.protectedEndTick = tick;
   player.respawnTick = tick;
+  player.respawnFlux = null;
+  player.fluxRegenAnchor = player.flux;
+  player.fluxRegenTicks = 0;
   player.damageLog = [];
   player.aimSource = player.isBot ? AimSource.Bot : AimSource.Mouse;
   player.stats = createPlayerStats();

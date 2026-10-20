@@ -19,6 +19,7 @@ import {
 } from './morph.js';
 import { PHASE_POLICY } from './phasePolicy.js';
 import { respawnDuePlayers } from './respawn.js';
+import { advanceFluxAndShards } from './shards.js';
 import type { World } from './world.js';
 import { advancePhase } from './match.js';
 import {
@@ -263,7 +264,7 @@ export const TICK_SYSTEMS = [
   { name: 'deaths', run: finalizeDeaths },
   { name: 'respawns', run: respawnDuePlayers },
   { name: 'statusTimers', run: emptySystem },
-  { name: 'fluxAndShards', run: emptySystem },
+  { name: 'fluxAndShards', run: advanceFluxAndShards },
   { name: 'zone', run: emptySystem },
   { name: 'cover', run: emptySystem },
   { name: 'output', run: outputSystem },

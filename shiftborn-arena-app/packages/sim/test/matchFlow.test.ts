@@ -9,7 +9,7 @@ import {
 } from '../src/match.js';
 import { PHASE_POLICY } from '../src/phasePolicy.js';
 import { createPlayer } from '../src/player.js';
-import { sfc32, shuffle } from '../src/rng.js';
+import { nextInt, sfc32, shuffle, type Rng } from '../src/rng.js';
 import { step } from '../src/step.js';
 import { createWorld } from '../src/world.js';
 import { makeTestWorld } from './fixtures/makeTestWorld.js';
@@ -21,6 +21,13 @@ const players = Array.from({ length: BALANCE.match.seats }, (_, seat) => ({
   isBot: false,
   seat,
 }));
+
+function consumeInitialClusterChoices(rng: Rng): void {
+  const remaining = GREYBOX_V1.shardPoints.map((_, index) => index);
+  for (let index = 0; index < BALANCE.shards.activeClusters; index += 1) {
+    remaining.splice(nextInt(rng, remaining.length), 1);
+  }
+}
 
 function allZero(value: unknown): boolean {
   if (typeof value === 'number') return value === 0;
@@ -78,7 +85,13 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     expect(world.phase).toBe(Phase.Results);
     expect(world.phaseEndTick).toBe(total);
     const resultEvents = step(world, [], {});
-    expect(resultEvents).toEqual([{ type: 'phase' }]);
+    expect(resultEvents).toEqual([
+      { type: 'phase' },
+      ...world.shards.map((shard) => ({
+        type: 'shardSpawn',
+        shardId: shard.id,
+      })),
+    ]);
     expect(world.phase).toBe(Phase.Countdown);
     expect(world.tick).toBe(total + 1);
     expect(world.phaseEndTick).toBe(total + DERIVED.match.countdownTicks);
@@ -91,6 +104,7 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
       expectedRng,
       GREYBOX_V1.spawnPoints.map((_, index) => index),
     );
+    consumeInitialClusterChoices(expectedRng);
     expect(world.rng).toEqual(expectedRng);
   });
 
@@ -114,6 +128,7 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
       roomSeed: 2,
       mode: Mode.Frenzy,
     });
+    world.events.length = 0;
     world.tick = DERIVED.match.countdownTicks;
     advancePhase(world);
     expect(world.phase).toBe(Phase.Playing);
@@ -176,6 +191,7 @@ describe('AT-MATCH-02 seeded match reset', () => {
       expectedRng,
       GREYBOX_V1.spawnPoints.map((_, index) => index),
     );
+    consumeInitialClusterChoices(expectedRng);
     const assigned = world.players.map((player) => {
       if (player === null) throw new Error('Missing player');
       return GREYBOX_V1.spawnPoints.findIndex(

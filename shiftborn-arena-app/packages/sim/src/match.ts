@@ -5,6 +5,7 @@ import { clearProjectiles } from './projectiles.js';
 import { sfc32, shuffle } from './rng.js';
 import { rememberSpawn } from './spawns.js';
 import { grantSpawnProtection } from './protection.js';
+import { setupClusters } from './shards.js';
 import type { World } from './world.js';
 
 /** GR-2.10: a collision-free textual encoding of the two safe integer inputs. */
@@ -59,6 +60,7 @@ export function startMatch(world: World): void {
     emitEvent(world, { type: 'spawn' });
     assignment += 1;
   }
+  setupClusters(world);
 }
 
 /** GR-2.2: transition at the start of each exclusive boundary tick. */

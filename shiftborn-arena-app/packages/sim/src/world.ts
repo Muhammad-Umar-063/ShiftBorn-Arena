@@ -6,14 +6,14 @@ import { createMapRuntime, type MapRuntime } from './map/collisionIndex.js';
 import { startMatch } from './match.js';
 import type { PlayerRecord } from './player.js';
 import type { Projectile } from './projectiles.js';
+import type { Shard, ClusterState } from './shards.js';
 
 export type { MapRuntime } from './map/collisionIndex.js';
 export type CoverState = { readonly id: string; intact: boolean };
 export type { PlayerRecord, PlayerStats } from './player.js';
 export type { Projectile } from './projectiles.js';
 export type { PendingDeath } from './death.js';
-export type Shard = { readonly id: number };
-export type ClusterState = Readonly<Record<string, unknown>>;
+export type { Shard, ClusterState } from './shards.js';
 export type ZoneState = Readonly<Record<string, unknown>>;
 
 export interface World {
@@ -32,6 +32,7 @@ export interface World {
   projectiles: Projectile[];
   projectilePool: Projectile[];
   nextProjectileId: number;
+  nextShardId: number;
   shards: Shard[];
   clusters: ClusterState[];
   zone: ZoneState | null;
@@ -62,6 +63,7 @@ export function createWorld(opts: {
     projectiles: [],
     projectilePool: [],
     nextProjectileId: 0,
+    nextShardId: 0,
     shards: [],
     clusters: [],
     zone: null,

@@ -23,6 +23,9 @@ export function respawnPlayer(
   resetMorphForRespawn(player, tick);
   player.hpFrac = 1;
   if (respawnFlux !== undefined) player.flux = respawnFlux;
+  player.respawnFlux = null;
+  player.fluxRegenAnchor = player.flux;
+  player.fluxRegenTicks = 0;
   player.ability = null;
   player.abilityReadyTick = {
     [Form.Runner]: tick,
@@ -54,7 +57,13 @@ export function respawnDuePlayers(world: World): void {
     const spawnIndex = chooseSpawnPoint(world, player.id);
     const point = world.map.spawnPoints[spawnIndex];
     if (point === undefined) throw new RangeError('spawn point is missing');
-    respawnPlayer(player, world.tick, point, center);
+    respawnPlayer(
+      player,
+      world.tick,
+      point,
+      center,
+      player.respawnFlux ?? player.flux,
+    );
     emitEvent(world, {
       type: 'respawn',
       seat: player.seat,

@@ -7,6 +7,7 @@ import { emitEvent } from '../src/events.js';
 import { nextFloat } from '../src/rng.js';
 import { createPlayer } from '../src/player.js';
 import { projectileRecord } from './fixtures/projectileRecord.js';
+import { ShardKind } from '../src/shards.js';
 
 describe('GR-1.5 deterministic world skeleton', () => {
   it('createWorld starts with structural defaults and does not mutate the map', () => {
@@ -176,13 +177,33 @@ describe('GR-1.5 deterministic world skeleton', () => {
     [
       'shards',
       (world) => {
-        world.shards.push({ id: 1 });
+        world.shards.push({
+          id: 1,
+          x: 0,
+          y: 0,
+          value: BALANCE.flux.smallShard,
+          kind: ShardKind.Small,
+          expiresTick: 0,
+          clusterId: null,
+        });
+      },
+    ],
+    [
+      'nextShardId',
+      (world) => {
+        world.nextShardId = 1;
       },
     ],
     [
       'clusters',
       (world) => {
-        world.clusters.push({});
+        world.clusters.push({
+          id: 0,
+          pointIndex: 0,
+          state: 'waiting',
+          announceTick: 1,
+          spawnTick: 0,
+        });
       },
     ],
     [

@@ -1,5 +1,7 @@
-import { DERIVED, Form, type Cause } from '@shiftborn/shared';
+import { BALANCE, DERIVED, Form, type Cause } from '@shiftborn/shared';
 import { emitEvent } from './events.js';
+import { createDeathDrop, deathFluxAmounts } from './deathDrops.js';
+import { gainFlux } from './flux.js';
 import { cancelMorphOnDeath } from './morph.js';
 import type { World } from './world.js';
 
@@ -69,7 +71,17 @@ export function finalizeDeaths(world: World): void {
       player.stats.assists += 1;
       assisters.push({ id: player.id, seat: player.seat });
     }
-    // T-018 inserts Flux rewards and the death drop here.
+    // GR-11.3: both sides of a mutual kill are dead before rewards run.
+    if (killer !== undefined && killer !== null && killer.alive)
+      gainFlux(killer, BALANCE.flux.ko);
+    for (const assister of assisters) {
+      const player = world.players[assister.seat];
+      if (player?.alive && player.id === assister.id)
+        gainFlux(player, BALANCE.flux.assist);
+    }
+    const { drop, respawnFlux } = deathFluxAmounts(victim.flux);
+    victim.respawnFlux = respawnFlux;
+    createDeathDrop(world, victim, death.deathTick, drop);
     emitEvent(world, {
       type: 'death',
       victimId: death.victimId,
