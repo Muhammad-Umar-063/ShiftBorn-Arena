@@ -47,3 +47,14 @@ export {
   targetVelocity,
 } from './movement.js';
 export type { MotionResult } from './movement.js';
+export { formStats } from './formStats.js';
+export type { FormStats } from './formStats.js';
+export {
+  cancelMorphOnDeath,
+  dueMorphCompletion,
+  evaluateMorphRequest,
+  morphCost,
+  morphKnockbackImmune,
+  resetMorphForRespawn,
+} from './morph.js';
+export type { MorphCompletion, MorphDecision } from './morph.js';

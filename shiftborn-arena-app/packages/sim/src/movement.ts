@@ -6,6 +6,7 @@ import {
   type MapRuntime,
 } from './map/collisionIndex.js';
 import type { CoverState, PlayerRecord } from './world.js';
+import { formStats } from './formStats.js';
 
 export interface MotionResult {
   readonly pos: Vec2;
@@ -23,35 +24,13 @@ export function decodeMoveDirection(moveX: number, moveY: number): Vec2 {
   return length > 1 ? { x: x / length, y: y / length } : { x, y };
 }
 
-function formSpeed(form: Form): number {
-  switch (form) {
-    case Form.Runner:
-      return BALANCE.forms.runner.speedMps;
-    case Form.Beast:
-      return BALANCE.forms.beast.speedMps;
-    case Form.Turret:
-      return BALANCE.forms.turret.speedMps;
-  }
-}
-
-function formRadius(form: Form): number {
-  switch (form) {
-    case Form.Runner:
-      return BALANCE.forms.runner.radiusM;
-    case Form.Beast:
-      return BALANCE.forms.beast.radiusM;
-    case Form.Turret:
-      return BALANCE.forms.turret.radiusM;
-  }
-}
-
 /** GR-4.3–4.4: target and acceleration use the active (old during morph) form. */
 export function targetVelocity(
   player: Pick<PlayerRecord, 'form' | 'morph'>,
   direction: Vec2,
 ): Vec2 {
   const speed =
-    formSpeed(player.form) *
+    formStats(player.form).speedMps *
     (player.morph === null ? 1 : BALANCE.morph.moveMult);
   return { x: direction.x * speed, y: direction.y * speed };
 }
@@ -91,7 +70,7 @@ export function integrateCircleMotion(
 ): MotionResult {
   const pos = { x: player.pos.x, y: player.pos.y };
   const vel = { x: velocity.x, y: velocity.y };
-  const radius = formRadius(player.form);
+  const radius = formStats(player.form).radiusM;
   const totalDistance = Math.hypot(vel.x, vel.y) * DERIVED.tick.secondsPerTick;
   const count = Math.max(
     1,

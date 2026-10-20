@@ -55,7 +55,7 @@ export interface PlayerRecord {
   morphReadyTick: number;
   hpFrac: number;
   flux: number;
-  ability: null;
+  ability: Readonly<Record<string, never>> | null;
   abilityReadyTick: Record<Form, number>;
   weapon: Record<Form, { nextShotIn: number }>;
   heat: number;
@@ -67,6 +67,8 @@ export interface PlayerRecord {
   respawnTick: number;
   damageLog: { attackerId: string; tick: number; amount: number }[];
   lastInputSeq: number;
+  lastButtonInputSeq: number;
+  lastHeldButtons: number;
   aimSource: AimSource;
   stats: PlayerStats;
 }
@@ -95,7 +97,11 @@ function zeroAimSources(): Record<AimSource, number> {
 }
 
 function zeroAbilities(): Record<AbilityId, number> {
-  return { [AbilityId.Dash]: 0, [AbilityId.RamCharge]: 0, [AbilityId.RailShot]: 0 };
+  return {
+    [AbilityId.Dash]: 0,
+    [AbilityId.RamCharge]: 0,
+    [AbilityId.RailShot]: 0,
+  };
 }
 
 // GR-12.4: only initialization is implemented here; accounting belongs to later tasks.
@@ -123,7 +129,12 @@ export function createPlayerStats(): PlayerStats {
 }
 
 export function createPlayer(
-  player: { readonly id: string; readonly name: string; readonly isBot: boolean; readonly seat: number },
+  player: {
+    readonly id: string;
+    readonly name: string;
+    readonly isBot: boolean;
+    readonly seat: number;
+  },
   tick: number,
 ): PlayerRecord {
   return {
@@ -142,7 +153,11 @@ export function createPlayer(
     hpFrac: 0,
     flux: 0,
     ability: null,
-    abilityReadyTick: { [Form.Runner]: tick, [Form.Beast]: tick, [Form.Turret]: tick },
+    abilityReadyTick: {
+      [Form.Runner]: tick,
+      [Form.Beast]: tick,
+      [Form.Turret]: tick,
+    },
     weapon: {
       [Form.Runner]: { nextShotIn: 0 },
       [Form.Beast]: { nextShotIn: 0 },
@@ -157,6 +172,8 @@ export function createPlayer(
     respawnTick: tick,
     damageLog: [],
     lastInputSeq: -1,
+    lastButtonInputSeq: -1,
+    lastHeldButtons: 0,
     aimSource: player.isBot ? AimSource.Bot : AimSource.Mouse,
     stats: createPlayerStats(),
   };
@@ -174,7 +191,11 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
   player.hpFrac = 1;
   player.flux = BALANCE.flux.start;
   player.ability = null;
-  player.abilityReadyTick = { [Form.Runner]: tick, [Form.Beast]: tick, [Form.Turret]: tick };
+  player.abilityReadyTick = {
+    [Form.Runner]: tick,
+    [Form.Beast]: tick,
+    [Form.Turret]: tick,
+  };
   player.weapon = {
     [Form.Runner]: { nextShotIn: 0 },
     [Form.Beast]: { nextShotIn: 0 },
@@ -194,13 +215,25 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
 
 export function addPlayer(
   world: World,
-  player: { readonly id: string; readonly name: string; readonly isBot: boolean; readonly seat: number },
+  player: {
+    readonly id: string;
+    readonly name: string;
+    readonly isBot: boolean;
+    readonly seat: number;
+  },
 ): void {
-  if (!Number.isInteger(player.seat) || player.seat < 0 || player.seat >= BALANCE.match.seats) {
-    throw new RangeError('seat must be an integer within the configured seat range');
+  if (
+    !Number.isInteger(player.seat) ||
+    player.seat < 0 ||
+    player.seat >= BALANCE.match.seats
+  ) {
+    throw new RangeError(
+      'seat must be an integer within the configured seat range',
+    );
   }
   if (world.players[player.seat] !== null) throw new Error('seat is occupied');
-  if (world.players.some((current) => current?.id === player.id)) throw new Error('duplicate player id');
+  if (world.players.some((current) => current?.id === player.id))
+    throw new Error('duplicate player id');
   const record = createPlayer(player, world.tick);
   if (world.phase !== Phase.Results) {
     const spawnIndex = chooseSpawnPoint(world, player.id);
@@ -222,8 +255,13 @@ export function removePlayer(world: World, id: string): void {
   world.players[seat] = null;
 }
 
-export function setController(world: World, id: string, controller: Controller): void {
+export function setController(
+  world: World,
+  id: string,
+  controller: Controller,
+): void {
   const player = world.players.find((current) => current?.id === id);
-  if (player === undefined || player === null) throw new Error('unknown player id');
+  if (player === undefined || player === null)
+    throw new Error('unknown player id');
   player.controller = controller;
 }

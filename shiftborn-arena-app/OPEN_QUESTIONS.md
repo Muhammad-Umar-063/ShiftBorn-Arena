@@ -174,6 +174,17 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 - Status: Open
 - Answer:
 
+### OQ-014 Simultaneous morph targets
+- Asked: 2026-10-20 by Codex, while working on T-014
+- Question: What should happen when two or three morph target buttons acquire a rising edge on the same tick?
+- Context: GR-5.1 defines one target request, but gives no priority for simultaneous targets. T-014 isolates this case by selecting no target and emitting no morph event until a decision is approved.
+- Options: A) Fixed form priority. B) Reject the ambiguous press. C) Use input bit order.
+- Recommendation: B, because it does not select a form the player may not have intended.
+- Blocks: T-014 simultaneous-target behavior only; normal single-target morphing proceeds.
+- Needed by: Before final input handling is shipped
+- Status: Open
+- Answer:
+
 ---
 
 ## Answered

@@ -10,7 +10,7 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-013. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-014.
+**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-014. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-015.
 
 | Stage | Goal | Gate |
 |---|---|---|

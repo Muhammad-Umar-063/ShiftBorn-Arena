@@ -7,8 +7,14 @@ import type { World } from './world.js';
 
 /** GR-2.10: a collision-free textual encoding of the two safe integer inputs. */
 export function deriveMatchId(roomSeed: number, matchIndex: number): string {
-  if (!Number.isSafeInteger(roomSeed) || !Number.isSafeInteger(matchIndex) || matchIndex < 0) {
-    throw new RangeError('match ID inputs must be safe integers with a nonnegative match index');
+  if (
+    !Number.isSafeInteger(roomSeed) ||
+    !Number.isSafeInteger(matchIndex) ||
+    matchIndex < 0
+  ) {
+    throw new RangeError(
+      'match ID inputs must be safe integers with a nonnegative match index',
+    );
   }
   return `match:${roomSeed}:${matchIndex}`;
 }
@@ -29,7 +35,10 @@ export function startMatch(world: World): void {
   world.phaseEndTick = world.tick + DERIVED.match.countdownTicks;
   world.matchId = deriveMatchId(world.roomSeed, world.matchIndex);
   world.rng = sfc32(world.roomSeed, world.matchIndex);
-  const spawnOrder = shuffle(world.rng, world.map.spawnPoints.map((_, index) => index));
+  const spawnOrder = shuffle(
+    world.rng,
+    world.map.spawnPoints.map((_, index) => index),
+  );
   world.recentSpawns = [];
   world.projectiles.length = 0;
   for (const cover of world.cover) cover.intact = true;
@@ -37,8 +46,10 @@ export function startMatch(world: World): void {
     const player = world.players[seat];
     if (player === null || player === undefined) continue;
     const spawnIndex = spawnOrder[assignment];
-    const point = spawnIndex === undefined ? undefined : world.map.spawnPoints[spawnIndex];
-    if (spawnIndex === undefined || point === undefined) throw new RangeError('spawn point is missing');
+    const point =
+      spawnIndex === undefined ? undefined : world.map.spawnPoints[spawnIndex];
+    if (spawnIndex === undefined || point === undefined)
+      throw new RangeError('spawn point is missing');
     resetPlayerForMatch(player, world.tick);
     player.pos = { x: point.x, y: point.y };
     rememberSpawn(world, spawnIndex);
@@ -54,13 +65,19 @@ export function advancePhase(world: World): void {
     world.phase = Phase.Playing;
     world.phaseEndTick = world.tick + DERIVED.match.durationTicks;
     for (const player of world.players) {
-      if (player?.alive) player.protectedEndTick = world.tick + DERIVED.match.spawnProtectionTicks;
+      if (player?.alive)
+        player.protectedEndTick =
+          world.tick + DERIVED.match.spawnProtectionTicks;
     }
     emitEvent(world, { type: 'phase' });
   } else if (world.phase === Phase.Playing) {
     world.phase = Phase.Results;
     world.phaseEndTick = world.tick + DERIVED.match.resultsTicks;
     world.projectiles.length = 0;
+    // GR-5.8: match end drops unfinished morphs without a refund or morph event.
+    for (const player of world.players) {
+      if (player !== null) player.morph = null;
+    }
     emitEvent(world, { type: 'phase' });
   } else {
     world.matchIndex += 1;
