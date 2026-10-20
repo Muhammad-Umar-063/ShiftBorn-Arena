@@ -58,7 +58,13 @@ export function startMatch(world: World): void {
     resetPlayerForMatch(player, world.tick);
     player.pos = { x: point.x, y: point.y };
     rememberSpawn(world, spawnIndex);
-    emitEvent(world, { type: 'spawn' });
+    emitEvent(world, {
+      type: 'spawn',
+      seat,
+      x: player.pos.x,
+      y: player.pos.y,
+      protectedEndTick: player.protectedEndTick,
+    });
     assignment += 1;
   }
   setupClusters(world);
@@ -73,7 +79,11 @@ export function advancePhase(world: World): void {
     for (const player of world.players) {
       if (player?.alive) grantSpawnProtection(player, world.tick);
     }
-    emitEvent(world, { type: 'phase' });
+    emitEvent(world, {
+      type: 'phase',
+      phase: world.phase,
+      phaseEndTick: world.phaseEndTick,
+    });
   } else if (world.phase === Phase.Playing) {
     world.phase = Phase.Results;
     world.phaseEndTick = world.tick + DERIVED.match.resultsTicks;
@@ -85,10 +95,18 @@ export function advancePhase(world: World): void {
         cancelAbility(world, player, world.tick);
       }
     }
-    emitEvent(world, { type: 'phase' });
+    emitEvent(world, {
+      type: 'phase',
+      phase: world.phase,
+      phaseEndTick: world.phaseEndTick,
+    });
   } else {
     world.matchIndex += 1;
-    emitEvent(world, { type: 'phase' });
+    emitEvent(world, {
+      type: 'phase',
+      phase: Phase.Countdown,
+      phaseEndTick: world.tick + DERIVED.match.countdownTicks,
+    });
     startMatch(world);
   }
 }

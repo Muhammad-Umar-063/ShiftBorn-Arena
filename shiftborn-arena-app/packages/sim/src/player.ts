@@ -87,6 +87,11 @@ export interface PlayerRecord {
   stats: PlayerStats;
 }
 
+export type PlayerIdentity = Pick<
+  PlayerRecord,
+  'id' | 'seat' | 'name' | 'isBot'
+>;
+
 function zeroForms(): Record<Form, number> {
   return { [Form.Runner]: 0, [Form.Beast]: 0, [Form.Turret]: 0 };
 }
@@ -143,12 +148,7 @@ export function createPlayerStats(): PlayerStats {
 }
 
 export function createPlayer(
-  player: {
-    readonly id: string;
-    readonly name: string;
-    readonly isBot: boolean;
-    readonly seat: number;
-  },
+  player: PlayerIdentity,
   tick: number,
 ): PlayerRecord {
   return {
@@ -235,15 +235,7 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
   player.stats = createPlayerStats();
 }
 
-export function addPlayer(
-  world: World,
-  player: {
-    readonly id: string;
-    readonly name: string;
-    readonly isBot: boolean;
-    readonly seat: number;
-  },
-): void {
+export function addPlayer(world: World, player: PlayerIdentity): void {
   if (
     !Number.isInteger(player.seat) ||
     player.seat < 0 ||
@@ -266,7 +258,13 @@ export function addPlayer(
     if (world.phase === Phase.Playing) {
       grantSpawnProtection(record, world.tick);
     }
-    emitEvent(world, { type: 'spawn' });
+    emitEvent(world, {
+      type: 'spawn',
+      seat: player.seat,
+      x: record.pos.x,
+      y: record.pos.y,
+      protectedEndTick: record.protectedEndTick,
+    });
   }
   world.players[player.seat] = record;
 }
@@ -276,6 +274,72 @@ export function removePlayer(world: World, id: string): void {
   if (seat < 0) throw new Error('unknown player id');
   removeOwnedProjectiles(world, id);
   world.players[seat] = null;
+}
+
+function clonePlayerStats(stats: PlayerStats): PlayerStats {
+  return {
+    ...stats,
+    damageDealtByForm: { ...stats.damageDealtByForm },
+    shotsFired: {
+      byWeapon: { ...stats.shotsFired.byWeapon },
+      byAimSource: { ...stats.shotsFired.byAimSource },
+    },
+    hits: {
+      byWeapon: { ...stats.hits.byWeapon },
+      byAimSource: { ...stats.hits.byAimSource },
+    },
+    morphs: {
+      count: stats.morphs.count,
+      byTargetForm: { ...stats.morphs.byTargetForm },
+    },
+    timeAliveByFormTicks: { ...stats.timeAliveByFormTicks },
+    abilitiesUsed: { ...stats.abilitiesUsed },
+    abilityHits: { ...stats.abilityHits },
+  };
+}
+
+/** BOT_SPEC §9.1: change identity while retaining the current life and stats. */
+export function handoffPlayerToBot(
+  world: World,
+  humanId: string,
+  bot: Pick<PlayerIdentity, 'id' | 'name'>,
+): PlayerRecord {
+  const seat = world.players.findIndex((player) => player?.id === humanId);
+  const human = world.players[seat];
+  if (seat < 0 || human === null || human === undefined || human.isBot)
+    throw new Error('unknown human player id');
+  if (world.players.some((player) => player?.id === bot.id))
+    throw new Error('duplicate player id');
+  removeOwnedProjectiles(world, humanId);
+  const replacement: PlayerRecord = {
+    ...human,
+    id: bot.id,
+    name: bot.name,
+    isBot: true,
+    controller: Controller.Bot,
+    pos: { ...human.pos },
+    vel: { ...human.vel },
+    morph: human.morph === null ? null : { ...human.morph },
+    ability: human.ability === null ? null : { ...human.ability },
+    abilityReadyTick: { ...human.abilityReadyTick },
+    weapon: {
+      [Form.Runner]: { ...human.weapon[Form.Runner] },
+      [Form.Beast]: { ...human.weapon[Form.Beast] },
+      [Form.Turret]: { ...human.weapon[Form.Turret] },
+    },
+    knockback:
+      human.knockback === null
+        ? null
+        : { vel: { ...human.knockback.vel }, endTick: human.knockback.endTick },
+    damageLog: human.damageLog.map((entry) => ({ ...entry })),
+    stats: clonePlayerStats(human.stats),
+    aimSource: AimSource.Bot,
+    lastHeldButtons: 0,
+    lastShotInputSeq: -1,
+    nextShotIdx: 0,
+  };
+  world.players[seat] = replacement;
+  return replacement;
 }
 
 export function setController(

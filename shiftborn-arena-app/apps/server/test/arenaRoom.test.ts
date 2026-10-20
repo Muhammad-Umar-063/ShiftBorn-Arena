@@ -1,7 +1,7 @@
 import { createServer as createTcpServer } from 'node:net';
 import { performance } from 'node:perf_hooks';
 import { ColyseusTestServer } from '@colyseus/testing';
-import { BALANCE } from '@shiftborn/shared';
+import { BALANCE, PROTOCOL_VERSION } from '@shiftborn/shared';
 import { addPlayer } from '@shiftborn/sim';
 import { describe, expect, it } from 'vitest';
 import { loadServerConfig } from '../src/config.js';
@@ -11,6 +11,12 @@ import type { ArenaStateRecord } from '../src/rooms/schema.js';
 import { createServer } from '../src/server.js';
 
 class HarnessRoom extends ArenaRoom {
+  protected override botFillEnabled = false;
+
+  override onJoin(): void {
+    // T-021 tests the mirror and scheduler with an explicitly injected player.
+  }
+
   get testWorld() {
     return this.world;
   }
@@ -73,7 +79,9 @@ describe('T-021 ArenaRoom real Colyseus integration', () => {
       await server.listen(port, '127.0.0.1');
       testServer = new ColyseusTestServer(server);
       room = await testServer.createRoom<HarnessRoom>('arena');
-      const client = await testServer.connectTo(room);
+      const client = await testServer.connectTo(room, {
+        protocolVersion: PROTOCOL_VERSION,
+      });
       leaveClient = () => client.leave(true);
       const clientState = client.state as ArenaStateRecord;
       expect(room.roomName).toBe('arena');

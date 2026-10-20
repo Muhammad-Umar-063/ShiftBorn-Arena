@@ -10,7 +10,11 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-022. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-023.
+**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-024. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-025.
+
+T-023 added version and name authentication, authoritative welcome data, and ordered per-tick event batches. With the pinned Colyseus SDK, a protocol mismatch returns HTTP 400 with JSON `code: 4000`; the SDK join helper exposes HTTP 400 as its error code. This transport behavior was approved for T-023.
+
+T-024 fills rooms with eight idle placeholder bots. Humans immediately take an empty seat or replace a selected bot; a final human leave hands the same life to a new bot. Real bot AI begins at T-051. Matchmaking, host settings, and locking remain T-025; reconnect, proxy, and AFK lifecycle behavior remain T-026 and T-055.
 
 | Stage | Goal | Gate |
 |---|---|---|

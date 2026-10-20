@@ -86,7 +86,11 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     expect(world.phaseEndTick).toBe(total);
     const resultEvents = step(world, [], {});
     expect(resultEvents).toEqual([
-      { type: 'phase' },
+      {
+        type: 'phase',
+        phase: Phase.Countdown,
+        phaseEndTick: total + DERIVED.match.countdownTicks,
+      },
       ...world.shards.map((shard) => ({
         type: 'shardSpawn',
         shardId: shard.id,
@@ -137,7 +141,15 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     advancePhase(world);
     expect(world.phase).toBe(Phase.Results);
     expect(world.projectiles).toEqual([]);
-    expect(world.events).toEqual([{ type: 'phase' }, { type: 'phase' }]);
+    expect(world.events).toEqual([
+      {
+        type: 'phase',
+        phase: Phase.Playing,
+        phaseEndTick:
+          DERIVED.match.countdownTicks + DERIVED.match.durationTicks,
+      },
+      { type: 'phase', phase: Phase.Results, phaseEndTick: world.phaseEndTick },
+    ]);
   });
 
   it('GR-2.4 grants protection from the first PLAYING tick only', () => {
@@ -152,7 +164,9 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     expect(world.phase).toBe(Phase.Countdown);
     expect(player.protectedEndTick).toBe(0);
     const events = step(world, [], {});
-    expect(events).toEqual([{ type: 'phase' }]);
+    expect(events).toEqual([
+      { type: 'phase', phase: Phase.Playing, phaseEndTick: world.phaseEndTick },
+    ]);
     expect(world.phase).toBe(Phase.Playing);
     expect(player.protectedEndTick).toBe(
       DERIVED.match.countdownTicks + DERIVED.match.spawnProtectionTicks,

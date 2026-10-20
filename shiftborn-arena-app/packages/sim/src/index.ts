@@ -4,6 +4,7 @@ export type {
   CoverState,
   MapRuntime,
   PlayerRecord,
+  PlayerIdentity,
   PlayerStats,
   PendingDeath,
   Projectile,
@@ -35,7 +36,12 @@ export {
 } from './map/collisionIndex.js';
 export type { WallCollisionGrid } from './map/collisionIndex.js';
 export { lineOfSight } from './map/lineOfSight.js';
-export { addPlayer, removePlayer, setController } from './player.js';
+export {
+  addPlayer,
+  handoffPlayerToBot,
+  removePlayer,
+  setController,
+} from './player.js';
 export { chooseSpawnPoint } from './spawns.js';
 export { deriveMatchId, setMode } from './match.js';
 export { PHASE_POLICY } from './phasePolicy.js';

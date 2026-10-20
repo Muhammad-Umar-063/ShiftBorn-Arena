@@ -23,3 +23,4 @@ export { GREYBOX_V1 } from './maps/greybox_v1.js';
 export type { Box, MapData, MapPoint } from './maps/types.js';
 export * from './protocol.js';
 export { displayHealth, displayDamage } from './display.js';
+export { generateSafePlayerName, sanitizePlayerName } from './names.js';

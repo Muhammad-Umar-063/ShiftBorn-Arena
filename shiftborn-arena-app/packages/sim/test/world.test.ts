@@ -247,7 +247,13 @@ describe('GR-1.5 deterministic world skeleton', () => {
     const before = JSON.stringify(world);
     const hash = hashWorld(world);
     expect(JSON.stringify(world)).toBe(before);
-    emitEvent(world, { type: 'spawn' });
+    emitEvent(world, {
+      type: 'spawn',
+      seat: 0,
+      x: 0,
+      y: 0,
+      protectedEndTick: 0,
+    });
     expect(hashWorld(world)).toBe(hash);
   });
 

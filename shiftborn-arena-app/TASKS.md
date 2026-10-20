@@ -45,8 +45,8 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-020 | Spike: Colyseus netcode helpers | T-006, T-013 | M | DONE (2026-10-20) |
 | T-021 | ArenaRoom, tick loop, schema and mirror | T-020, T-012 | L | DONE (2026-10-20) |
 | T-022 | Server input pipeline | T-021 | M | DONE (2026-10-20) |
-| T-023 | Event batching, welcome, version checks | T-021 | S | TODO |
-| T-024 | Seats, bot backfill and instant replacement | T-021 | M | TODO |
+| T-023 | Event batching, welcome, version checks | T-021 | S | DONE (2026-10-20) |
+| T-024 | Seats, bot backfill and instant replacement | T-021 | M | DONE (2026-10-20) |
 | T-025 | Matchmaking: quick play, code rooms, host, locking | T-024 | M | TODO |
 | T-026 | Connection lifecycle: drop, reconnect, hidden tab, AFK, leave, shutdown | T-024 | M | TODO |
 | T-027 | RTT probes, clock sync and spawn advance wiring | T-022 | S | TODO |
@@ -677,3 +677,5 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-020 | M | Not tracked | 2026-10-20 | Pinned Colyseus helper spike with real local sockets, seeded 61-second latency matrix, input and prediction probes, and approved D-061 mixed implementation path. The 2% head-of-line quality failure remains a production validation risk. |
 | T-021 | L | Not tracked | 2026-10-20 | Base ArenaRoom with crypto room seed, complete §4.2 Schema projection, identity-preserving mirror, custom fixed 30 Hz loop with three-step catch-up cap, 20 Hz patching, tick metrics, and real client integration. Input and seat policy remain later tasks. |
 | T-022 | M | Not tracked | 2026-10-20 | Validated numeric input packets, per-seat sequence queues, redundant recovery, two-frame edge union, rolling rate/abuse limits, 4003 kick, 4 KiB WebSocket cap, and room/sim integration. OQ-014 and OQ-015 remain open. |
+| T-023 | S | Not tracked | 2026-10-20 | Static auth, safe names, authoritative welcome, and ordered event batches. Approved transport exception: pinned SDK reports HTTP 400 for a mismatch; the JSON body carries code 4000. Seat allocation remains T-024. |
+| T-024 | M | Not tracked | 2026-10-20 | Eight idle placeholder bots enter one seeded match start; neutral bot frames, damage-tick replacement choice, same-tick human joins, sorted projectile expiry, and final human-to-bot life handoff. Matchmaking and reconnect policy remain later tasks. |

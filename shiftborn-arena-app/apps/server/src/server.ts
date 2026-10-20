@@ -1,8 +1,10 @@
-import { Server } from '@colyseus/core';
+import { createMiddleware, createRouter, Server } from '@colyseus/core';
 import { WebSocketTransport } from '@colyseus/ws-transport';
+import { CloseCode } from '@shiftborn/shared';
 import pino, { type Logger } from 'pino';
 import type { ServerConfig } from './config.js';
 import { ArenaRoom } from './rooms/ArenaRoom.js';
+import { hasCurrentProtocolVersion } from './rooms/auth.js';
 
 // NETWORK_PROTOCOL §14: maximum complete WebSocket message size is 4 KiB.
 export const MAX_WS_MESSAGE_BYTES = 4 * 1024;
@@ -51,6 +53,30 @@ export function createServer(
       );
     },
   });
-  server.define('arena', roomClass);
+  // Pinned Colyseus uses ServerError.code as an HTTP status. The wire close
+  // code 4000 is invalid as an HTTP status, so reject it at the public router
+  // boundary with HTTP 400 and preserve 4000 in the SDK-visible JSON body.
+  server.router = createRouter(
+    {},
+    {
+      routerMiddleware: [
+        {
+          path: '/matchmake/:method/:roomName',
+          middleware: createMiddleware(async (context) => {
+            if (hasCurrentProtocolVersion(context.body)) return;
+            return Response.json(
+              {
+                code: CloseCode.VersionMismatch,
+                error: 'Protocol version mismatch',
+              },
+              { status: 400 },
+            );
+          }),
+        },
+      ],
+    },
+  );
+  // Pinned Colyseus merges trusted default options after client options.
+  server.define('arena', roomClass, { trustedBuildId: config.buildId });
   return server;
 }

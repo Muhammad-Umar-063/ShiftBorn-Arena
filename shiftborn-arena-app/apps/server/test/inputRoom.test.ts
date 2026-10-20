@@ -8,6 +8,7 @@ import {
   Form,
   InputButton,
   Phase,
+  PROTOCOL_VERSION,
 } from '@shiftborn/shared';
 import { addPlayer } from '@shiftborn/sim';
 import { startMatch } from '../../../packages/sim/src/match.js';
@@ -19,6 +20,12 @@ import { ArenaRoom } from '../src/rooms/ArenaRoom.js';
 import { createServer, MAX_WS_MESSAGE_BYTES } from '../src/server.js';
 
 class InputHarnessRoom extends ArenaRoom {
+  protected override botFillEnabled = false;
+
+  override onJoin(): void {
+    // T-022 tests explicitly bound input sources independent of seat policy.
+  }
+
   readonly testQueues = new Map<number, InputQueue>();
 
   preparePlayer(seat: number): void {
@@ -29,7 +36,8 @@ class InputHarnessRoom extends ArenaRoom {
       seat,
     });
     const player = this.world.players[seat];
-    if (player === null || player === undefined) throw new Error('missing player');
+    if (player === null || player === undefined)
+      throw new Error('missing player');
     player.alive = true;
     player.flux = BALANCE.flux.max;
     this.world.phase = Phase.Playing;
@@ -117,7 +125,9 @@ describe('T-022 real Colyseus input pipeline', () => {
   it('AT-NET-03 accepts numeric ID 1, merges a released morph edge, and mirrors lastInputSeq', async () => {
     await withRoom(async (room, server) => {
       room.preparePlayer(0);
-      const client = await server.connectTo(room);
+      const client = await server.connectTo(room, {
+        protocolVersion: PROTOCOL_VERSION,
+      });
       const queue = room.bindTestClient(0);
       client.send(ClientMessageId.Input, [
         ...input(3),
@@ -162,8 +172,12 @@ describe('T-022 real Colyseus input pipeline', () => {
     await withRoom(async (room, server) => {
       room.preparePlayer(0);
       room.preparePlayer(1);
-      const bad = await server.connectTo(room);
-      const good = await server.connectTo(room);
+      const bad = await server.connectTo(room, {
+        protocolVersion: PROTOCOL_VERSION,
+      });
+      const good = await server.connectTo(room, {
+        protocolVersion: PROTOCOL_VERSION,
+      });
       const badQueue = room.bindTestClient(0);
       const goodQueue = room.bindTestClient(1);
       const left = new Promise<number>((resolve) => bad.onLeave(resolve));
@@ -191,10 +205,15 @@ describe('T-022 real Colyseus input pipeline', () => {
     expect(MAX_WS_MESSAGE_BYTES).toBe(4 * 1024);
     await withRoom(async (room, server) => {
       room.preparePlayer(0);
-      const client = await server.connectTo(room);
+      const client = await server.connectTo(room, {
+        protocolVersion: PROTOCOL_VERSION,
+      });
       const queue = room.bindTestClient(0);
       const left = new Promise<number>((resolve) => client.onLeave(resolve));
-      client.send(ClientMessageId.Input, Array.from({ length: MAX_WS_MESSAGE_BYTES + 1 }, () => 1));
+      client.send(
+        ClientMessageId.Input,
+        Array.from({ length: MAX_WS_MESSAGE_BYTES + 1 }, () => 1),
+      );
       expect(await left).toBe(1009);
       expect(queue.lastReceivedSeq).toBe(0);
       expect(room.testWorld.tick).toBeGreaterThanOrEqual(0);

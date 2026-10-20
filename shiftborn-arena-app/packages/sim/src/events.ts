@@ -3,6 +3,7 @@ import type {
   Cause,
   Form,
   MorphDenialReason,
+  Phase,
   WeaponId,
 } from '@shiftborn/shared';
 import type { Vec2 } from './math/vec2.js';
@@ -65,9 +66,23 @@ type SimpleEventName = Exclude<
   | 'clusterAnnounce'
   | 'abilityStart'
   | 'abilityEnd'
+  | 'phase'
+  | 'spawn'
 >;
 export type SimEvent =
   | { [Name in SimpleEventName]: { readonly type: Name } }[SimpleEventName]
+  | {
+      readonly type: 'phase';
+      readonly phase: Phase;
+      readonly phaseEndTick: number;
+    }
+  | {
+      readonly type: 'spawn';
+      readonly seat: number;
+      readonly x: number;
+      readonly y: number;
+      readonly protectedEndTick: number;
+    }
   | {
       readonly type: 'abilityStart';
       readonly seat: number;

@@ -562,7 +562,9 @@ describe('GR-5 morphing', () => {
     step(world, [input(InputButton.MorphBeast, 1)], {});
     const spentFlux = player.flux;
     world.tick = world.phaseEndTick;
-    expect(step(world, [], {})).toEqual([{ type: 'phase' }]);
+    expect(step(world, [], {})).toEqual([
+      { type: 'phase', phase: Phase.Results, phaseEndTick: world.phaseEndTick },
+    ]);
     expect(world.phase).toBe(Phase.Results);
     expect(player.morph).toBeNull();
     expect(player.form).toBe(Form.Runner);
@@ -584,7 +586,7 @@ describe('GR-5 morphing', () => {
     expect(player.lastHeldButtons).toBe(InputButton.MorphBeast);
     world.tick = world.phaseEndTick;
     expect(step(world, [input(InputButton.MorphBeast, 2)], {})).toEqual([
-      { type: 'phase' },
+      { type: 'phase', phase: Phase.Playing, phaseEndTick: world.phaseEndTick },
     ]);
     expect(player.morph).toBeNull();
   });

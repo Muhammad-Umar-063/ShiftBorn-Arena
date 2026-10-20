@@ -84,9 +84,15 @@ export function clearProjectiles(world: World): void {
 }
 
 export function removeOwnedProjectiles(world: World, ownerId: string): void {
+  const expiredIds = world.projectiles
+    .filter((projectile) => projectile.ownerId === ownerId)
+    .map((projectile) => projectile.id)
+    .sort((left, right) => left - right);
   for (let index = world.projectiles.length - 1; index >= 0; index -= 1) {
     if (world.projectiles[index]?.ownerId === ownerId) releaseAt(world, index);
   }
+  for (const id of expiredIds)
+    emitEvent(world, { type: 'projectileExpire', id });
 }
 
 function spawnOverlaps(world: World, pos: Vec2, radiusM: number): boolean {

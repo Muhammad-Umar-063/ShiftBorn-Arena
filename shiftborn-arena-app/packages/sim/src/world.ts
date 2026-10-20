@@ -4,13 +4,18 @@ import type { PendingDeath } from './death.js';
 import { sfc32, type Rng } from './rng.js';
 import { createMapRuntime, type MapRuntime } from './map/collisionIndex.js';
 import { startMatch } from './match.js';
-import type { PlayerRecord } from './player.js';
+import {
+  createPlayer,
+  type PlayerIdentity,
+  type PlayerRecord,
+} from './player.js';
 import type { Projectile } from './projectiles.js';
 import type { Shard, ClusterState } from './shards.js';
 
 export type { MapRuntime } from './map/collisionIndex.js';
 export type CoverState = { readonly id: string; intact: boolean };
 export type { PlayerRecord, PlayerStats } from './player.js';
+export type { PlayerIdentity } from './player.js';
 export type { Projectile } from './projectiles.js';
 export type { PendingDeath } from './death.js';
 export type { Shard, ClusterState } from './shards.js';
@@ -45,6 +50,7 @@ export function createWorld(opts: {
   readonly map: MapData;
   readonly roomSeed: number;
   readonly mode: Mode;
+  readonly initialPlayers?: readonly PlayerIdentity[];
 }): World {
   const matchIndex = 0;
   const world: World = {
@@ -71,6 +77,17 @@ export function createWorld(opts: {
     pendingDeaths: [],
     events: [],
   };
+  for (const player of opts.initialPlayers ?? []) {
+    if (
+      !Number.isInteger(player.seat) ||
+      player.seat < 0 ||
+      player.seat >= BALANCE.match.seats ||
+      world.players[player.seat] !== null ||
+      world.players.some((current) => current?.id === player.id)
+    )
+      throw new RangeError('invalid initial player seat or id');
+    world.players[player.seat] = createPlayer(player, world.tick);
+  }
   startMatch(world);
   return world;
 }
