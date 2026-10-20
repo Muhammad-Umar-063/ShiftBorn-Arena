@@ -1,6 +1,7 @@
 import type { InputFrame } from '@shiftborn/shared';
 import type { SimEvent } from './events.js';
 import type { World } from './world.js';
+import { advancePhase } from './match.js';
 
 export interface StepContext {
   readonly spawnAdvanceTicksBySeat?: readonly number[];
@@ -14,7 +15,7 @@ const outputSystem: System = (world) => {
 
 // GR-15: step executes this same descriptor that tests inspect.
 export const TICK_SYSTEMS = [
-  { name: 'phase', run: emptySystem },
+  { name: 'phase', run: advancePhase },
   { name: 'inputs', run: emptySystem },
   { name: 'morph', run: emptySystem },
   { name: 'abilityStart', run: emptySystem },

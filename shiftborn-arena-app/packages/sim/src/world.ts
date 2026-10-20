@@ -2,10 +2,12 @@ import { BALANCE, Phase, type MapData, type Mode } from '@shiftborn/shared';
 import type { SimEvent } from './events.js';
 import { sfc32, type Rng } from './rng.js';
 import { createMapRuntime, type MapRuntime } from './map/collisionIndex.js';
+import { startMatch } from './match.js';
+import type { PlayerRecord } from './player.js';
 
 export type { MapRuntime } from './map/collisionIndex.js';
 export type CoverState = { readonly id: string; intact: boolean };
-export type PlayerRecord = { readonly id: string; readonly seat: number };
+export type { PlayerRecord, PlayerStats } from './player.js';
 export type Projectile = { readonly id: number };
 export type Shard = { readonly id: number };
 export type ClusterState = Readonly<Record<string, unknown>>;
@@ -16,6 +18,7 @@ export interface World {
   phase: Phase;
   phaseEndTick: number;
   mode: Mode;
+  pendingMode: Mode;
   matchIndex: number;
   matchId: string;
   roomSeed: number;
@@ -38,11 +41,12 @@ export function createWorld(opts: {
   readonly mode: Mode;
 }): World {
   const matchIndex = 0;
-  return {
+  const world: World = {
     tick: 0,
     phase: Phase.Countdown,
     phaseEndTick: 0,
     mode: opts.mode,
+    pendingMode: opts.mode,
     matchIndex,
     matchId: '',
     roomSeed: opts.roomSeed,
@@ -58,4 +62,6 @@ export function createWorld(opts: {
     recentSpawns: [],
     events: [],
   };
+  startMatch(world);
+  return world;
 }

@@ -1,10 +1,11 @@
-import { BALANCE, GREYBOX_V1, Mode, Phase } from '@shiftborn/shared';
+import { BALANCE, DERIVED, GREYBOX_V1, Mode, Phase } from '@shiftborn/shared';
 import { describe, expect, it } from 'vitest';
 import { TEST_OPEN } from './fixtures/testOpen.js';
 import { createWorld, type World } from '../src/world.js';
 import { hashWorld } from '../src/hash.js';
 import { emitEvent } from '../src/events.js';
 import { nextFloat } from '../src/rng.js';
+import { createPlayer } from '../src/player.js';
 
 describe('GR-1.5 deterministic world skeleton', () => {
   it('createWorld starts with structural defaults and does not mutate the map', () => {
@@ -17,10 +18,10 @@ describe('GR-1.5 deterministic world skeleton', () => {
     expect(world).toMatchObject({
       tick: 0,
       phase: Phase.Countdown,
-      phaseEndTick: 0,
+      phaseEndTick: DERIVED.match.countdownTicks,
       mode: Mode.Frenzy,
       matchIndex: 0,
-      matchId: '',
+      matchId: 'match:42:0',
       roomSeed: 42,
       nextProjectileId: 0,
       zone: null,
@@ -109,6 +110,12 @@ describe('GR-1.5 deterministic world skeleton', () => {
       },
     ],
     [
+      'pendingMode',
+      (world) => {
+        world.pendingMode = Mode.ZoneFrenzy;
+      },
+    ],
+    [
       'matchIndex',
       (world) => {
         world.matchIndex = 1;
@@ -147,7 +154,7 @@ describe('GR-1.5 deterministic world skeleton', () => {
     [
       'players',
       (world) => {
-        world.players[0] = { id: 'player', seat: 0 };
+        world.players[0] = createPlayer({ id: 'player', seat: 0, name: 'Player', isBot: false }, world.tick);
       },
     ],
     [

@@ -5,6 +5,7 @@ import { createMapRuntime, queryCircleWallIndexes, queryWallIndexes, WALL_GRID_C
 import { lineOfSight } from '../src/map/lineOfSight.js';
 import { nextFloat, sfc32 } from '../src/rng.js';
 import { createWorld } from '../src/world.js';
+import { createPlayer } from '../src/player.js';
 import { TEST_OPEN } from './fixtures/testOpen.js';
 
 const smallMap: MapData = {
@@ -102,7 +103,9 @@ describe('GR-4.9 / GR-4.11 line of sight', () => {
 
   it('passes open paths and ignores players', () => {
     const state = world();
-    state.players[0] = { id: 'player', seat: 0 };
+    state.players[0] = createPlayer({ id: 'player', seat: 0, name: 'Player', isBot: false }, state.tick);
+    const player = state.players[0];
+    if (player !== null) player.alive = true;
     expect(lineOfSight(state, { x: -2, y: 3 }, { x: 6, y: 3 })).toBe(true);
     expect(lineOfSight(state, { x: -2, y: 3 }, { x: -1, y: 3 })).toBe(true);
   });

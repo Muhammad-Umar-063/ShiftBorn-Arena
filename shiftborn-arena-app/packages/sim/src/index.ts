@@ -4,6 +4,7 @@ export type {
   CoverState,
   MapRuntime,
   PlayerRecord,
+  PlayerStats,
   Projectile,
   Shard,
   World,
@@ -24,3 +25,7 @@ export type { RaycastShape, RaycastHit } from './math/raycast.js';
 export { WALL_GRID_CELL_SIZE_M, createMapRuntime, queryWallIndexes, queryCircleWallIndexes } from './map/collisionIndex.js';
 export type { WallCollisionGrid } from './map/collisionIndex.js';
 export { lineOfSight } from './map/lineOfSight.js';
+export { addPlayer, removePlayer, setController } from './player.js';
+export { chooseSpawnPoint } from './spawns.js';
+export { deriveMatchId, setMode } from './match.js';
+export { PHASE_POLICY } from './phasePolicy.js';

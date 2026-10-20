@@ -103,7 +103,7 @@ describe('GR-15 tick skeleton', () => {
       mode: Mode.Frenzy,
     });
     for (let count = 0; count < 1000; count += 1) {
-      expect(step(world, [], {})).toEqual([]);
+      expect(step(world, [], {}).every((event) => event.type === 'phase')).toBe(true);
     }
     expect(world.tick).toBe(1000);
     expect(world.players.every((player) => player === null)).toBe(true);
