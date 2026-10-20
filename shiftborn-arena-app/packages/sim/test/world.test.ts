@@ -1,4 +1,4 @@
-import { BALANCE, Mode, Phase } from '@shiftborn/shared';
+import { BALANCE, GREYBOX_V1, Mode, Phase } from '@shiftborn/shared';
 import { describe, expect, it } from 'vitest';
 import { TEST_OPEN } from './fixtures/testOpen.js';
 import { createWorld, type World } from '../src/world.js';
@@ -25,7 +25,8 @@ describe('GR-1.5 deterministic world skeleton', () => {
       nextProjectileId: 0,
       zone: null,
     });
-    expect(world.map).toBe(TEST_OPEN);
+    expect(world.map.walls).toBe(TEST_OPEN.walls);
+    expect(world.map.wallGrid.cellSizeM).toBe(4);
     expect(world.players).toEqual(Array(BALANCE.match.seats).fill(null));
     for (const field of [
       'cover',
@@ -140,7 +141,7 @@ describe('GR-1.5 deterministic world skeleton', () => {
     [
       'cover',
       (world) => {
-        world.cover.push({ id: 'cover' });
+        world.cover.push({ id: 'cover', intact: true });
       },
     ],
     [
@@ -216,5 +217,28 @@ describe('GR-1.5 deterministic world skeleton', () => {
     expect(JSON.stringify(world)).toBe(before);
     emitEvent(world, { type: 'spawn' });
     expect(hashWorld(world)).toBe(hash);
+  });
+
+  it('GR-4.11 initializes ordered cover and gives each world fresh mutable cover state', () => {
+    const before = JSON.stringify(GREYBOX_V1);
+    const options = { map: GREYBOX_V1, roomSeed: 8, mode: Mode.Frenzy };
+    const first = createWorld(options);
+    const second = createWorld(options);
+    expect(first.cover).toEqual(GREYBOX_V1.cover.map(({ id }) => ({ id, intact: true })));
+    expect(first.cover).not.toBe(second.cover);
+    expect(first.cover[0]).not.toBe(second.cover[0]);
+    const firstCover = first.cover[0];
+    if (firstCover === undefined) throw new Error('Expected greybox cover');
+    firstCover.intact = false;
+    expect(second.cover[0]?.intact).toBe(true);
+    expect(JSON.stringify(GREYBOX_V1)).toBe(before);
+  });
+
+  it('hashWorld agrees for equivalent independently built runtime maps', () => {
+    const copied = JSON.parse(JSON.stringify(GREYBOX_V1)) as typeof GREYBOX_V1;
+    const first = createWorld({ map: GREYBOX_V1, roomSeed: 8, mode: Mode.Frenzy });
+    const second = createWorld({ map: copied, roomSeed: 8, mode: Mode.Frenzy });
+    expect(hashWorld(first)).toBe(hashWorld(second));
+    expect(JSON.parse(JSON.stringify(first.map))).toEqual(first.map);
   });
 });

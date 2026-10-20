@@ -1,10 +1,10 @@
 import { BALANCE, Phase, type MapData, type Mode } from '@shiftborn/shared';
 import type { SimEvent } from './events.js';
 import { sfc32, type Rng } from './rng.js';
+import { createMapRuntime, type MapRuntime } from './map/collisionIndex.js';
 
-// T-011 will add collision indexing to this static map view.
-export type MapRuntime = MapData;
-export type CoverState = { readonly id: string };
+export type { MapRuntime } from './map/collisionIndex.js';
+export type CoverState = { readonly id: string; intact: boolean };
 export type PlayerRecord = { readonly id: string; readonly seat: number };
 export type Projectile = { readonly id: number };
 export type Shard = { readonly id: number };
@@ -47,8 +47,8 @@ export function createWorld(opts: {
     matchId: '',
     roomSeed: opts.roomSeed,
     rng: sfc32(opts.roomSeed, matchIndex),
-    map: opts.map,
-    cover: [],
+    map: createMapRuntime(opts.map),
+    cover: opts.map.cover.map(({ id }) => ({ id, intact: true })),
     players: Array.from({ length: BALANCE.match.seats }, () => null),
     projectiles: [],
     nextProjectileId: 0,
