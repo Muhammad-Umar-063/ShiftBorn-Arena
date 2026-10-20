@@ -215,7 +215,7 @@ Last updated: 2026-10-16.
 
 ### D-061 Netcode implementation path
 
-- **Status:** Approved (user approval in conversation, 2026-10-20).
+- **Status:** Approved by Hamza (confirmed in conversation, 2026-10-20).
 - **Task:** T-020. Evidence and reproduction commands: `tools/spikes/netcode/README.md`.
 - **Pinned versions inspected:** `@colyseus/core` 0.18.18, `@colyseus/ws-transport` 0.18.4, `@colyseus/sdk` 0.18.5, `@colyseus/schema` 5.0.40, `@colyseus/testing` 0.18.6, and `@colyseus/tools` 0.18.10 (D-060). No dependency or protocol version change was needed.
 - **Decision:** Use mixed Colyseus room/transport and lifecycle hooks with custom Shiftborn netcode adapters over the public APIs. Preserve the numeric message IDs, flat newest-plus-two input packet, project `InputFrame.seq`, event-only projectiles, deterministic shared simulation, inclusive 0.5 m snap threshold, and 30-second reconnect window.

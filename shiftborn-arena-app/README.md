@@ -10,7 +10,7 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-020. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-021.
+**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-022. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-023.
 
 | Stage | Goal | Gate |
 |---|---|---|
@@ -77,7 +77,7 @@ Start both the watched server and Vite client with one command:
 pnpm dev
 ```
 
-Open <http://localhost:5173> to see the temporary Shiftborn Arena development landing shell and build ID. `http://localhost:2567/healthz` checks the local server; Vite proxies the same route at `http://localhost:5173/healthz`. This task provides no gameplay, rooms, bots or matchmaking. The name and Play flow belongs to T-030.
+Open <http://localhost:5173> to see the temporary Shiftborn Arena development landing shell and build ID. `http://localhost:2567/healthz` checks the local server; Vite proxies the same route at `http://localhost:5173/healthz`. The authoritative ArenaRoom now mirrors simulation state and accepts validated input for bound human seats. Player seat assignment, bots, joining, matchmaking and later lifecycle behavior remain future tasks. The name and Play flow belongs to T-030.
 
 Useful debug controls, when their tasks are complete:
 

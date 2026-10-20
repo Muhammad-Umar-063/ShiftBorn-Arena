@@ -46,6 +46,8 @@ import {
 
 export interface StepContext {
   readonly spawnAdvanceTicksBySeat?: readonly number[];
+  /** NETWORK_PROTOCOL §5.4: server catch-up may merge edges from two inputs. */
+  readonly inputPressedButtonsBySeat?: readonly (number | undefined)[];
 }
 
 interface TickContext extends StepContext {
@@ -72,7 +74,8 @@ const inputSystem: System = (world, context) => {
     // GR-5.1: held bits produce an edge only for a new input sequence.
     if (frame.seq > player.lastButtonInputSeq) {
       context.pressedButtonsBySeat[seat] =
-        frame.buttons & ~player.lastHeldButtons;
+        context.inputPressedButtonsBySeat?.[seat] ??
+        (frame.buttons & ~player.lastHeldButtons);
       player.lastHeldButtons = frame.buttons;
       player.lastButtonInputSeq = frame.seq;
     }

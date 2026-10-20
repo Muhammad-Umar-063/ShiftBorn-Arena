@@ -43,8 +43,8 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-018 | Flux and shards | T-017 | M | DONE (2026-10-20) |
 | T-019 | Dash | T-014 | S | DONE (2026-10-20) |
 | T-020 | Spike: Colyseus netcode helpers | T-006, T-013 | M | DONE (2026-10-20) |
-| T-021 | ArenaRoom, tick loop, schema and mirror | T-020, T-012 | L | TODO |
-| T-022 | Server input pipeline | T-021 | M | TODO |
+| T-021 | ArenaRoom, tick loop, schema and mirror | T-020, T-012 | L | DONE (2026-10-20) |
+| T-022 | Server input pipeline | T-021 | M | DONE (2026-10-20) |
 | T-023 | Event batching, welcome, version checks | T-021 | S | TODO |
 | T-024 | Seats, bot backfill and instant replacement | T-021 | M | TODO |
 | T-025 | Matchmaking: quick play, code rooms, host, locking | T-024 | M | TODO |
@@ -675,3 +675,5 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-018 | M | Not tracked | 2026-10-20 | Capped Flux regeneration/rewards/pickups, deterministic cluster lifecycle and death drops, exact expiry and precomputed respawn Flux. Exposed approved GR-10.9 nudge key in balance proto-2 without tuning existing values. |
 | T-019 | S | Not tracked | 2026-10-20 | Runner Dash with exact six-tick motion and end-based cooldown, wall/cover sliding, ability events and interruption seam. Completed Dash portions of AT-ABL-19/20 and T-014's deferred real ability/morph interaction. Ram Charge and Rail Shot remain later tasks. |
 | T-020 | M | Not tracked | 2026-10-20 | Pinned Colyseus helper spike with real local sockets, seeded 61-second latency matrix, input and prediction probes, and approved D-061 mixed implementation path. The 2% head-of-line quality failure remains a production validation risk. |
+| T-021 | L | Not tracked | 2026-10-20 | Base ArenaRoom with crypto room seed, complete §4.2 Schema projection, identity-preserving mirror, custom fixed 30 Hz loop with three-step catch-up cap, 20 Hz patching, tick metrics, and real client integration. Input and seat policy remain later tasks. |
+| T-022 | M | Not tracked | 2026-10-20 | Validated numeric input packets, per-seat sequence queues, redundant recovery, two-frame edge union, rolling rate/abuse limits, 4003 kick, 4 KiB WebSocket cap, and room/sim integration. OQ-014 and OQ-015 remain open. |

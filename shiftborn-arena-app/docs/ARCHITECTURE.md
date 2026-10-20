@@ -513,7 +513,7 @@ Dev commands (rejected unless `DEV_CHEATS=1`): `/flux <n>`, `/hp <fraction>`, `/
 
 ## 14. Security for the prototype
 
-- Clients send inputs only. Every input field is range-checked and clamped (`docs/NETWORK_PROTOCOL.md` §5.2). Malformed messages are dropped; 50 malformed messages in 10 s kicks the client.
+- Clients send inputs only. Every input field is range-checked (`docs/NETWORK_PROTOCOL.md` §5.2); malformed fields are dropped. Valid movement is normalized by the sim. 50 invalid or dropped messages in 10 s kicks the client.
 - Inputs above 40 per second are dropped (`net.maxInputsPerS`).
 - Names: trimmed, 1 to 16 characters, letters, digits, spaces, `_` and `-` only; otherwise replaced with a generated name.
 - Dev cheats are off unless `DEV_CHEATS=1`, and the playtest deployment never sets it.
