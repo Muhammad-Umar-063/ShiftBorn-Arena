@@ -35,7 +35,7 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-010 | Sim skeleton: world, step, events, RNG, hash | T-003, T-004 | M | DONE (2026-10-20) |
 | T-011 | Geometry, collision index, line of sight | T-010 | M | DONE (2026-10-20) |
 | T-012 | Seats, phases, match start and spawns | T-011 | M | DONE (2026-10-20) |
-| T-013 | Movement, collision and aim | T-012 | M | TODO |
+| T-013 | Movement, collision and aim | T-012 | M | DONE (2026-10-20) |
 | T-014 | Forms and morphing | T-013 | M | TODO |
 | T-015 | Health and damage pipeline | T-014 | M | TODO |
 | T-016 | Form weapons and projectiles | T-015 | L | TODO |
@@ -667,3 +667,4 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-010 | M | Not tracked | 2026-10-20 | Plain world state, seeded sfc32 helpers, internal events, ordered empty tick systems, and canonical state hash. |
 | T-011 | M | Not tracked | 2026-10-20 | Pure geometry and raycast, serializable 4 m wall grid, ordered cover state, indexed circle queries, and line of sight. |
 | T-012 | M | Not tracked | 2026-10-20 | Fixed seats and player state, exact phase transitions, pending mode, seeded match spawns, spawn selection, and phase permissions. |
+| T-013 | M | Not tracked | 2026-10-20 | Deterministic input movement, acceleration, collision sliding, bounds clamping, and form-specific aim. |

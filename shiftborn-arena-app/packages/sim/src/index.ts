@@ -19,13 +19,31 @@ export type { StepContext } from './step.js';
 export { hashWorld } from './hash.js';
 export { subtract, dot } from './math/vec2.js';
 export type { Vec2 } from './math/vec2.js';
-export { circleBoxPushOut, segmentBoxIntersection, segmentCircleIntersection } from './math/geometry.js';
+export {
+  circleBoxPushOut,
+  segmentBoxIntersection,
+  segmentCircleIntersection,
+} from './math/geometry.js';
 export { raycast } from './math/raycast.js';
 export type { RaycastShape, RaycastHit } from './math/raycast.js';
-export { WALL_GRID_CELL_SIZE_M, createMapRuntime, queryWallIndexes, queryCircleWallIndexes } from './map/collisionIndex.js';
+export {
+  WALL_GRID_CELL_SIZE_M,
+  createMapRuntime,
+  queryWallIndexes,
+  queryCircleWallIndexes,
+} from './map/collisionIndex.js';
 export type { WallCollisionGrid } from './map/collisionIndex.js';
 export { lineOfSight } from './map/lineOfSight.js';
 export { addPlayer, removePlayer, setController } from './player.js';
 export { chooseSpawnPoint } from './spawns.js';
 export { deriveMatchId, setMode } from './match.js';
 export { PHASE_POLICY } from './phasePolicy.js';
+export { advanceAim } from './aim.js';
+export {
+  advanceMovement,
+  decodeMoveDirection,
+  integrateCircleMotion,
+  moveTowardVelocity,
+  targetVelocity,
+} from './movement.js';
+export type { MotionResult } from './movement.js';
