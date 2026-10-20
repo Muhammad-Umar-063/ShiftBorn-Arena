@@ -37,8 +37,8 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-012 | Seats, phases, match start and spawns | T-011 | M | DONE (2026-10-20) |
 | T-013 | Movement, collision and aim | T-012 | M | DONE (2026-10-20) |
 | T-014 | Forms and morphing | T-013 | M | DONE (2026-10-20) |
-| T-015 | Health and damage pipeline | T-014 | M | TODO |
-| T-016 | Form weapons and projectiles | T-015 | L | TODO |
+| T-015 | Health and damage pipeline | T-014 | M | DONE (2026-10-20) |
+| T-016 | Form weapons and projectiles | T-015 | L | DONE (2026-10-20) |
 | T-017 | Death, credit, respawn and spawn protection | T-016 | M | TODO |
 | T-018 | Flux and shards | T-017 | M | TODO |
 | T-019 | Dash | T-014 | S | TODO |
@@ -207,12 +207,12 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 - **Track:** Sim · **Size:** L · **Depends on:** T-015
 - **Spec:** `docs/GAME_RULES.md` §7; D-020, D-034
 - **Do:** per-form fire timers with the accumulator; blocked states; projectile pool, spawn rules, swept movement and hits, range expiry, wall impacts, protected blocks; Scatter pattern and falloff; Rail arm distance and heat; spawn advance via `StepContext`; events with `(inputSeq, shotIdx)`.
-- **Done when:** AT-WPN-01 to AT-WPN-15 pass (AT-WPN-13 needs T-017; mark it in T-017 if needed).
+- **Done when:** AT-WPN-01 to AT-WPN-12 and AT-WPN-14 to AT-WPN-15 pass; AT-WPN-13 projectile survival and damage pass. Its KO-credit assertion belongs to T-017.
 
 ### T-017 Death, credit, respawn and spawn protection
 - **Track:** Sim · **Size:** M · **Depends on:** T-016
 - **Spec:** `docs/GAME_RULES.md` GR-9.3, §11
-- **Do:** death handling order, KO and assist credit, same-tick rules, respawn timer, spawn choice, respawn state, protection start and early end, death event with recap data and counter form.
+- **Do:** death handling order, KO and assist credit (including the deferred AT-WPN-13 owner KO-credit assertion), same-tick rules, respawn timer, spawn choice, respawn state, protection start and early end, death event with recap data and counter form.
 - **Done when:** AT-DEATH-01 to AT-DEATH-08, AT-STS-05, AT-DMG-06, AT-WPN-13 pass.
 
 ### T-018 Flux and shards
@@ -669,3 +669,5 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-012 | M | Not tracked | 2026-10-20 | Fixed seats and player state, exact phase transitions, pending mode, seeded match spawns, spawn selection, and phase permissions. |
 | T-013 | M | Not tracked | 2026-10-20 | Deterministic input movement, acceleration, collision sliding, bounds clamping, and form-specific aim. |
 | T-014 | M | Not tracked | 2026-10-20 | Balance-backed form stats, morph input edges, ordered validation and events, exact completion and cooldown, match/death/respawn seams. Simultaneous target priority remains OQ-014. |
+| T-015 | M | Not tracked | 2026-10-20 | Pure matchup and front-arc damage, health and death threshold, immunity, assist-window log, internal damage events, and shared display formulas. Corrected stale GR-6.2 armor wording per D-013. |
+| T-016 | L | Not tracked | 2026-10-20 | Per-form firing and heat, deterministic projectile pool, swept walls/cover/players, scatter and Rail damage rules, spawn advance and typed events. AT-WPN-13 KO credit remains T-017; shot-index contract is OQ-015. |

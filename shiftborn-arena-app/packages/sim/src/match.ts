@@ -1,6 +1,7 @@
 import { DERIVED, Phase, type Mode } from '@shiftborn/shared';
 import { emitEvent } from './events.js';
 import { resetPlayerForMatch } from './player.js';
+import { clearProjectiles } from './projectiles.js';
 import { sfc32, shuffle } from './rng.js';
 import { rememberSpawn } from './spawns.js';
 import type { World } from './world.js';
@@ -40,7 +41,7 @@ export function startMatch(world: World): void {
     world.map.spawnPoints.map((_, index) => index),
   );
   world.recentSpawns = [];
-  world.projectiles.length = 0;
+  clearProjectiles(world);
   for (const cover of world.cover) cover.intact = true;
   for (let seat = 0, assignment = 0; seat < world.players.length; seat += 1) {
     const player = world.players[seat];
@@ -73,7 +74,7 @@ export function advancePhase(world: World): void {
   } else if (world.phase === Phase.Playing) {
     world.phase = Phase.Results;
     world.phaseEndTick = world.tick + DERIVED.match.resultsTicks;
-    world.projectiles.length = 0;
+    clearProjectiles(world);
     // GR-5.8: match end drops unfinished morphs without a refund or morph event.
     for (const player of world.players) {
       if (player !== null) player.morph = null;

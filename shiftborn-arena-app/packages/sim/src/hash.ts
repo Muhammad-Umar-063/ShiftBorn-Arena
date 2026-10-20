@@ -59,7 +59,9 @@ function writeValue(state: HashState, value: unknown, isWorld = false): void {
     }
     const record = value as Record<string, unknown>;
     const keys = Object.keys(record)
-      .filter((key) => !isWorld || key !== 'events')
+      .filter(
+        (key) => !isWorld || (key !== 'events' && key !== 'projectilePool'),
+      )
       .sort();
     writeText(state, 'object');
     writeText(state, String(keys.length));
@@ -71,7 +73,7 @@ function writeValue(state: HashState, value: unknown, isWorld = false): void {
   state.ancestors.delete(value);
 }
 
-// Events are transient output, so only the root World.events buffer is excluded.
+// Events and the released-record pool are not gameplay state.
 export function hashWorld(world: World): string {
   const state: HashState = { value: OFFSET, ancestors: new WeakSet() };
   writeValue(state, world, true);

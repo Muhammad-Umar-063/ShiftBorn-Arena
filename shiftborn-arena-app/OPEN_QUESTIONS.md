@@ -185,6 +185,17 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 - Status: Open
 - Answer:
 
+### OQ-015 Projectile shot index across repeated inputs
+- Asked: 2026-10-20 by Codex, while working on T-016
+- Question: How should `shotIdx` be allocated when one held input frame is reused across ticks, and when should its counter reset?
+- Context: D-034 and NETWORK_PROTOCOL §5.3/§6.1 require `(inputSeq, shotIdx)` to match predicted and authoritative spawns. §5.4 repeats the last frame when the buffer is empty, but does not specify the shot-index counter. T-016 currently assigns indexes in firing order for a sequence and resets to zero on a new accepted sequence; Scatter pellets consume consecutive indexes.
+- Options: A) Per-sequence increasing index (current). B) A lifetime increasing index. C) Another protocol-defined allocation rule.
+- Recommendation: A, with a predictor equivalence test in T-040 before client reconciliation ships.
+- Blocks: Final client/server reconciliation semantics in T-037 and T-040; server-only T-016 behavior proceeds deterministically.
+- Needed by: T-037
+- Status: Open
+- Answer:
+
 ---
 
 ## Answered

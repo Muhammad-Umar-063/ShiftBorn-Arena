@@ -6,6 +6,7 @@ import { hashWorld } from '../src/hash.js';
 import { emitEvent } from '../src/events.js';
 import { nextFloat } from '../src/rng.js';
 import { createPlayer } from '../src/player.js';
+import { projectileRecord } from './fixtures/projectileRecord.js';
 
 describe('GR-1.5 deterministic world skeleton', () => {
   it('createWorld starts with structural defaults and does not mutate the map', () => {
@@ -154,13 +155,16 @@ describe('GR-1.5 deterministic world skeleton', () => {
     [
       'players',
       (world) => {
-        world.players[0] = createPlayer({ id: 'player', seat: 0, name: 'Player', isBot: false }, world.tick);
+        world.players[0] = createPlayer(
+          { id: 'player', seat: 0, name: 'Player', isBot: false },
+          world.tick,
+        );
       },
     ],
     [
       'projectiles',
       (world) => {
-        world.projectiles.push({ id: 1 });
+        world.projectiles.push(projectileRecord(1));
       },
     ],
     [
@@ -231,7 +235,9 @@ describe('GR-1.5 deterministic world skeleton', () => {
     const options = { map: GREYBOX_V1, roomSeed: 8, mode: Mode.Frenzy };
     const first = createWorld(options);
     const second = createWorld(options);
-    expect(first.cover).toEqual(GREYBOX_V1.cover.map(({ id }) => ({ id, intact: true })));
+    expect(first.cover).toEqual(
+      GREYBOX_V1.cover.map(({ id }) => ({ id, intact: true })),
+    );
     expect(first.cover).not.toBe(second.cover);
     expect(first.cover[0]).not.toBe(second.cover[0]);
     const firstCover = first.cover[0];
@@ -243,7 +249,11 @@ describe('GR-1.5 deterministic world skeleton', () => {
 
   it('hashWorld agrees for equivalent independently built runtime maps', () => {
     const copied = JSON.parse(JSON.stringify(GREYBOX_V1)) as typeof GREYBOX_V1;
-    const first = createWorld({ map: GREYBOX_V1, roomSeed: 8, mode: Mode.Frenzy });
+    const first = createWorld({
+      map: GREYBOX_V1,
+      roomSeed: 8,
+      mode: Mode.Frenzy,
+    });
     const second = createWorld({ map: copied, roomSeed: 8, mode: Mode.Frenzy });
     expect(hashWorld(first)).toBe(hashWorld(second));
     expect(JSON.parse(JSON.stringify(first.map))).toEqual(first.map);

@@ -11,6 +11,7 @@ import {
 import type { Vec2 } from './math/vec2.js';
 import { emitEvent } from './events.js';
 import { chooseSpawnPoint } from './spawns.js';
+import { removeOwnedProjectiles } from './projectiles.js';
 import type { World } from './world.js';
 
 export interface PlayerStats {
@@ -69,6 +70,8 @@ export interface PlayerRecord {
   lastInputSeq: number;
   lastButtonInputSeq: number;
   lastHeldButtons: number;
+  lastShotInputSeq: number;
+  nextShotIdx: number;
   aimSource: AimSource;
   stats: PlayerStats;
 }
@@ -174,6 +177,8 @@ export function createPlayer(
     lastInputSeq: -1,
     lastButtonInputSeq: -1,
     lastHeldButtons: 0,
+    lastShotInputSeq: -1,
+    nextShotIdx: 0,
     aimSource: player.isBot ? AimSource.Bot : AimSource.Mouse,
     stats: createPlayerStats(),
   };
@@ -252,6 +257,7 @@ export function addPlayer(
 export function removePlayer(world: World, id: string): void {
   const seat = world.players.findIndex((player) => player?.id === id);
   if (seat < 0) throw new Error('unknown player id');
+  removeOwnedProjectiles(world, id);
   world.players[seat] = null;
 }
 

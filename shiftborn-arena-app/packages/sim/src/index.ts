@@ -58,3 +58,29 @@ export {
   resetMorphForRespawn,
 } from './morph.js';
 export type { MorphCompletion, MorphDecision } from './morph.js';
+export { applyDamage } from './damage.js';
+export { calculateDamage } from './damageMath.js';
+export type {
+  AttackSource,
+  DamageCalculation,
+  DamageResult,
+  DamageTarget,
+} from './damageMath.js';
+export {
+  weaponForForm,
+  canFireWeapon,
+  advanceWeaponTimers,
+  scatterAngles,
+  scatterDistanceMul,
+  railDistanceMul,
+  advanceTurretHeat,
+} from './weaponRules.js';
+export type { WeaponAbilityBlock } from './weaponRules.js';
+export {
+  spawnProjectile,
+  fireProjectiles,
+  advanceProjectile,
+  advanceAllProjectiles,
+  clearProjectiles,
+  removeOwnedProjectiles,
+} from './projectiles.js';

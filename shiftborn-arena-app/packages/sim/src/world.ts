@@ -4,11 +4,12 @@ import { sfc32, type Rng } from './rng.js';
 import { createMapRuntime, type MapRuntime } from './map/collisionIndex.js';
 import { startMatch } from './match.js';
 import type { PlayerRecord } from './player.js';
+import type { Projectile } from './projectiles.js';
 
 export type { MapRuntime } from './map/collisionIndex.js';
 export type CoverState = { readonly id: string; intact: boolean };
 export type { PlayerRecord, PlayerStats } from './player.js';
-export type Projectile = { readonly id: number };
+export type { Projectile } from './projectiles.js';
 export type Shard = { readonly id: number };
 export type ClusterState = Readonly<Record<string, unknown>>;
 export type ZoneState = Readonly<Record<string, unknown>>;
@@ -27,6 +28,7 @@ export interface World {
   cover: CoverState[];
   players: (PlayerRecord | null)[];
   projectiles: Projectile[];
+  projectilePool: Projectile[];
   nextProjectileId: number;
   shards: Shard[];
   clusters: ClusterState[];
@@ -55,6 +57,7 @@ export function createWorld(opts: {
     cover: opts.map.cover.map(({ id }) => ({ id, intact: true })),
     players: Array.from({ length: BALANCE.match.seats }, () => null),
     projectiles: [],
+    projectilePool: [],
     nextProjectileId: 0,
     shards: [],
     clusters: [],

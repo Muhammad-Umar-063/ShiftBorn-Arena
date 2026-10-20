@@ -148,7 +148,7 @@ base        = weapon or ability damage (GR-7, GR-8)
 distanceMul = Scatter falloff or Rail arm rule, else 1 (GR-7)
 matchupMul  = matchup[attackerClass][defenderClass]          (D-010)
 armorMul    = forms.turret.frontArcDamageMult (0.75) if the defender is a Turret
-              (not morphing out of one) and the hit comes from its front arc, else 1
+              (including while morphing out of one) and the hit comes from its front arc, else 1
 final       = base × distanceMul × matchupMul × armorMul     (hit points, float)
 hpFrac     -= final / defenderMaxHp
 ```

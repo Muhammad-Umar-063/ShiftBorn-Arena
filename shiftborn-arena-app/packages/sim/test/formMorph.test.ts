@@ -260,7 +260,12 @@ describe('GR-5 morphing', () => {
     expect(player.pos.x).toBeGreaterThan(0);
     expect(player.hpFrac).toBe(0.5);
     expect(player.abilityReadyTick).toEqual(abilityBefore);
-    expect(player.weapon).toEqual(weaponsBefore);
+    for (const form of [Form.Runner, Form.Beast, Form.Turret]) {
+      expect(player.weapon[form].nextShotIn).toBeCloseTo(
+        weaponsBefore[form].nextShotIn - 4 * DERIVED.tick.secondsPerTick,
+        12,
+      );
+    }
     const endTick = player.morph?.endTick;
     if (endTick === undefined) throw new Error('morph missing');
     world.tick = endTick;
@@ -268,7 +273,12 @@ describe('GR-5 morphing', () => {
     step(world, [input(0, 5)], {});
     expect(morphKnockbackImmune(player)).toBe(false);
     expect(player.abilityReadyTick).toEqual(abilityBefore);
-    expect(player.weapon).toEqual(weaponsBefore);
+    for (const form of [Form.Runner, Form.Beast, Form.Turret]) {
+      expect(player.weapon[form].nextShotIn).toBeCloseTo(
+        weaponsBefore[form].nextShotIn - 5 * DERIVED.tick.secondsPerTick,
+        12,
+      );
+    }
   });
 
   it('AT-MORPH-08 roots Turret through morph, then Runner accelerates', () => {

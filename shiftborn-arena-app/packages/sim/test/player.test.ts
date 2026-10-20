@@ -63,6 +63,8 @@ describe('GR §3 player records and seat APIs', () => {
         'lastInputSeq',
         'lastButtonInputSeq',
         'lastHeldButtons',
+        'lastShotInputSeq',
+        'nextShotIdx',
         'aimSource',
         'stats',
       ].sort(),

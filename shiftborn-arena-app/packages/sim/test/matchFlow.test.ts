@@ -1,30 +1,48 @@
 import { BALANCE, DERIVED, GREYBOX_V1, Mode, Phase } from '@shiftborn/shared';
 import { describe, expect, it } from 'vitest';
 import { hashWorld } from '../src/hash.js';
-import { advancePhase, deriveMatchId, setMode, startMatch } from '../src/match.js';
+import {
+  advancePhase,
+  deriveMatchId,
+  setMode,
+  startMatch,
+} from '../src/match.js';
 import { PHASE_POLICY } from '../src/phasePolicy.js';
 import { createPlayer } from '../src/player.js';
 import { sfc32, shuffle } from '../src/rng.js';
 import { step } from '../src/step.js';
 import { createWorld } from '../src/world.js';
 import { makeTestWorld } from './fixtures/makeTestWorld.js';
+import { projectileRecord } from './fixtures/projectileRecord.js';
 
 const players = Array.from({ length: BALANCE.match.seats }, (_, seat) => ({
-  id: `player-${seat}`, name: `Player ${seat}`, isBot: false, seat,
+  id: `player-${seat}`,
+  name: `Player ${seat}`,
+  isBot: false,
+  seat,
 }));
 
 function allZero(value: unknown): boolean {
   if (typeof value === 'number') return value === 0;
-  if (value !== null && typeof value === 'object') return Object.values(value).every(allZero);
+  if (value !== null && typeof value === 'object')
+    return Object.values(value).every(allZero);
   return false;
 }
 
 describe('AT-MATCH-01 exact phase lifecycle', () => {
   it('executes 90/5400/450 ticks and transitions at exclusive boundaries', () => {
-    const world = createWorld({ map: GREYBOX_V1, roomSeed: 21, mode: Mode.Frenzy });
+    const world = createWorld({
+      map: GREYBOX_V1,
+      roomSeed: 21,
+      mode: Mode.Frenzy,
+    });
     expect(world).toMatchObject({
-      tick: 0, phase: Phase.Countdown, phaseEndTick: DERIVED.match.countdownTicks,
-      matchIndex: 0, matchId: deriveMatchId(21, 0), pendingMode: Mode.Frenzy,
+      tick: 0,
+      phase: Phase.Countdown,
+      phaseEndTick: DERIVED.match.countdownTicks,
+      matchIndex: 0,
+      matchId: deriveMatchId(21, 0),
+      pendingMode: Mode.Frenzy,
     });
     const initialId = world.matchId;
     setMode(world, Mode.ZoneFrenzy);
@@ -34,17 +52,28 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     setMode(world, Mode.Frenzy);
     expect(hashWorld(world)).not.toBe(pendingHash);
     setMode(world, Mode.ZoneFrenzy);
-    const counts = { [Phase.Countdown]: 0, [Phase.Playing]: 0, [Phase.Results]: 0 };
+    const counts = {
+      [Phase.Countdown]: 0,
+      [Phase.Playing]: 0,
+      [Phase.Results]: 0,
+    };
     const phaseEventTicks: number[] = [];
-    const total = DERIVED.match.countdownTicks + DERIVED.match.durationTicks + DERIVED.match.resultsTicks;
+    const total =
+      DERIVED.match.countdownTicks +
+      DERIVED.match.durationTicks +
+      DERIVED.match.resultsTicks;
     for (let tick = 0; tick < total; tick += 1) {
       expect(world.tick).toBe(tick);
       const events = step(world, [], {});
       counts[world.phase] += 1;
-      if (events.some((event) => event.type === 'phase')) phaseEventTicks.push(tick);
+      if (events.some((event) => event.type === 'phase'))
+        phaseEventTicks.push(tick);
     }
     expect(counts).toEqual({ COUNTDOWN: 90, PLAYING: 5400, RESULTS: 450 });
-    expect(phaseEventTicks).toEqual([DERIVED.match.countdownTicks, DERIVED.match.countdownTicks + DERIVED.match.durationTicks]);
+    expect(phaseEventTicks).toEqual([
+      DERIVED.match.countdownTicks,
+      DERIVED.match.countdownTicks + DERIVED.match.durationTicks,
+    ]);
     expect(world.tick).toBe(total);
     expect(world.phase).toBe(Phase.Results);
     expect(world.phaseEndTick).toBe(total);
@@ -58,12 +87,19 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     expect(world.matchId).not.toBe(initialId);
     expect(world.mode).toBe(Mode.ZoneFrenzy);
     const expectedRng = sfc32(21, 1);
-    shuffle(expectedRng, GREYBOX_V1.spawnPoints.map((_, index) => index));
+    shuffle(
+      expectedRng,
+      GREYBOX_V1.spawnPoints.map((_, index) => index),
+    );
     expect(world.rng).toEqual(expectedRng);
   });
 
   it('derives repeatable match IDs without consuming world RNG', () => {
-    const world = createWorld({ map: GREYBOX_V1, roomSeed: -4, mode: Mode.Frenzy });
+    const world = createWorld({
+      map: GREYBOX_V1,
+      roomSeed: -4,
+      mode: Mode.Frenzy,
+    });
     const before = { ...world.rng };
     expect(deriveMatchId(-4, 0)).toBe(deriveMatchId(-4, 0));
     expect(deriveMatchId(-4, 1)).not.toBe(deriveMatchId(-4, 0));
@@ -73,11 +109,15 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
   });
 
   it('keeps the first system as phase and clears projectiles on RESULTS entry', () => {
-    const world = createWorld({ map: GREYBOX_V1, roomSeed: 2, mode: Mode.Frenzy });
+    const world = createWorld({
+      map: GREYBOX_V1,
+      roomSeed: 2,
+      mode: Mode.Frenzy,
+    });
     world.tick = DERIVED.match.countdownTicks;
     advancePhase(world);
     expect(world.phase).toBe(Phase.Playing);
-    world.projectiles.push({ id: 1 });
+    world.projectiles.push(projectileRecord(1));
     world.tick = world.phaseEndTick;
     advancePhase(world);
     expect(world.phase).toBe(Phase.Results);
@@ -90,7 +130,8 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     if (first === undefined) throw new Error('Missing fixture player');
     const world = makeTestWorld({ seed: 5, players: [first] });
     const player = world.players[0];
-    if (player === null || player === undefined) throw new Error('Missing player');
+    if (player === null || player === undefined)
+      throw new Error('Missing player');
     expect(player.protectedEndTick).toBe(0);
     while (world.tick < DERIVED.match.countdownTicks) step(world, [], {});
     expect(world.phase).toBe(Phase.Countdown);
@@ -98,7 +139,9 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
     const events = step(world, [], {});
     expect(events).toEqual([{ type: 'phase' }]);
     expect(world.phase).toBe(Phase.Playing);
-    expect(player.protectedEndTick).toBe(DERIVED.match.countdownTicks + DERIVED.match.spawnProtectionTicks);
+    expect(player.protectedEndTick).toBe(
+      DERIVED.match.countdownTicks + DERIVED.match.spawnProtectionTicks,
+    );
   });
 });
 
@@ -108,7 +151,12 @@ describe('AT-MATCH-02 seeded match reset', () => {
     const world = makeTestWorld({ seed: 43, players });
     const firstPlayer = world.players[0];
     const cover = world.cover[0];
-    if (firstPlayer === null || firstPlayer === undefined || cover === undefined) throw new Error('Missing fixture data');
+    if (
+      firstPlayer === null ||
+      firstPlayer === undefined ||
+      cover === undefined
+    )
+      throw new Error('Missing fixture data');
     firstPlayer.stats.kos = 3;
     firstPlayer.stats.shotsFired.byWeapon.pulsePistol = 8;
     firstPlayer.flux = 0;
@@ -119,30 +167,54 @@ describe('AT-MATCH-02 seeded match reset', () => {
     firstPlayer.damageLog.push({ attackerId: 'attacker', tick: 1, amount: 2 });
     firstPlayer.protectedEndTick = 300;
     cover.intact = false;
-    world.projectiles.push({ id: 3 });
+    world.projectiles.push(projectileRecord(3));
     world.events.length = 0;
     world.matchIndex = 1;
     startMatch(world);
     const expectedRng = sfc32(43, 1);
-    const order = shuffle(expectedRng, GREYBOX_V1.spawnPoints.map((_, index) => index));
+    const order = shuffle(
+      expectedRng,
+      GREYBOX_V1.spawnPoints.map((_, index) => index),
+    );
     const assigned = world.players.map((player) => {
       if (player === null) throw new Error('Missing player');
-      return GREYBOX_V1.spawnPoints.findIndex((point) => point.x === player.pos.x && point.y === player.pos.y);
+      return GREYBOX_V1.spawnPoints.findIndex(
+        (point) => point.x === player.pos.x && point.y === player.pos.y,
+      );
     });
     expect(assigned).toEqual(order.slice(0, BALANCE.match.seats));
     expect(new Set(assigned).size).toBe(BALANCE.match.seats);
     expect(world.rng).toEqual(expectedRng);
-    expect(world.recentSpawns).toEqual(assigned.slice(-BALANCE.match.spawnExcludeRecent));
-    expect(world.events.filter((event) => event.type === 'spawn')).toHaveLength(BALANCE.match.seats);
+    expect(world.recentSpawns).toEqual(
+      assigned.slice(-BALANCE.match.spawnExcludeRecent),
+    );
+    expect(world.events.filter((event) => event.type === 'spawn')).toHaveLength(
+      BALANCE.match.seats,
+    );
     for (const player of world.players) {
       if (player === null) throw new Error('Missing player');
       expect(player).toMatchObject({
-        alive: true, form: 'runner', hpFrac: 1, flux: BALANCE.flux.start,
-        vel: { x: 0, y: 0 }, aim: 0, morph: null, ability: null, knockback: null,
-        heat: 0, protectedEndTick: world.tick, respawnTick: world.tick,
+        alive: true,
+        form: 'runner',
+        hpFrac: 1,
+        flux: BALANCE.flux.start,
+        vel: { x: 0, y: 0 },
+        aim: 0,
+        morph: null,
+        ability: null,
+        knockback: null,
+        heat: 0,
+        protectedEndTick: world.tick,
+        respawnTick: world.tick,
       });
-      expect(Object.values(player.abilityReadyTick)).toEqual([world.tick, world.tick, world.tick]);
-      expect(Object.values(player.weapon).map((weapon) => weapon.nextShotIn)).toEqual([0, 0, 0]);
+      expect(Object.values(player.abilityReadyTick)).toEqual([
+        world.tick,
+        world.tick,
+        world.tick,
+      ]);
+      expect(
+        Object.values(player.weapon).map((weapon) => weapon.nextShotIn),
+      ).toEqual([0, 0, 0]);
       expect(player.damageLog).toEqual([]);
       expect(allZero(player.stats)).toBe(true);
     }
@@ -156,10 +228,19 @@ describe('AT-MATCH-02 seeded match reset', () => {
   });
 
   it('rejects a malformed map with fewer points than occupied seats', () => {
-    const map = { ...GREYBOX_V1, spawnPoints: GREYBOX_V1.spawnPoints.slice(0, 1) };
+    const map = {
+      ...GREYBOX_V1,
+      spawnPoints: GREYBOX_V1.spawnPoints.slice(0, 1),
+    };
     const world = createWorld({ map, roomSeed: 1, mode: Mode.Frenzy });
-    world.players[0] = createPlayer({ id: 'a', seat: 0, name: 'A', isBot: false }, world.tick);
-    world.players[1] = createPlayer({ id: 'b', seat: 1, name: 'B', isBot: false }, world.tick);
+    world.players[0] = createPlayer(
+      { id: 'a', seat: 0, name: 'A', isBot: false },
+      world.tick,
+    );
+    world.players[1] = createPlayer(
+      { id: 'b', seat: 1, name: 'B', isBot: false },
+      world.tick,
+    );
     expect(() => startMatch(world)).toThrow(/fewer spawn points/);
   });
 });
@@ -167,13 +248,24 @@ describe('AT-MATCH-02 seeded match reset', () => {
 describe('AT-MATCH-03 phase policy', () => {
   it('permits movement and aim in COUNTDOWN while blocking gameplay actions', () => {
     expect(PHASE_POLICY[Phase.Countdown]).toEqual({
-      input: true, movement: true, aim: true, fire: false, ability: false,
-      morph: false, damage: false, fluxRegeneration: false, zoneScoring: false,
+      input: true,
+      movement: true,
+      aim: true,
+      fire: false,
+      ability: false,
+      morph: false,
+      damage: false,
+      fluxRegeneration: false,
+      zoneScoring: false,
     });
   });
 
   it('permits normal gameplay in PLAYING and blocks input and gameplay in RESULTS', () => {
-    expect(Object.values(PHASE_POLICY[Phase.Playing]).every(Boolean)).toBe(true);
-    expect(Object.values(PHASE_POLICY[Phase.Results]).every((allowed) => !allowed)).toBe(true);
+    expect(Object.values(PHASE_POLICY[Phase.Playing]).every(Boolean)).toBe(
+      true,
+    );
+    expect(
+      Object.values(PHASE_POLICY[Phase.Results]).every((allowed) => !allowed),
+    ).toBe(true);
   });
 });
