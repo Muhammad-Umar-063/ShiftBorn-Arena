@@ -190,11 +190,12 @@ describe('T-022 real Colyseus input pipeline', () => {
       await until(() => badQueue.counters.unknownMessage === 1);
       bad.send(ClientMessageId.Ping, []);
       await new Promise<void>((resolve) => setTimeout(resolve, 10));
-      expect(badQueue.counters.total).toBe(1);
-      for (let index = 0; index < 49; index += 1)
+      // T-027 validates Ping; its malformed tuple shares the abuse counter.
+      expect(badQueue.counters.total).toBe(2);
+      for (let index = 0; index < 48; index += 1)
         bad.send(ClientMessageId.Input, [1, 2]);
       expect(await left).toBe(CloseCode.InvalidInput);
-      expect(badQueue.counters.malformedPacket).toBe(49);
+      expect(badQueue.counters.malformedPacket).toBe(48);
       expect(badQueue.counters.total).toBe(50);
       expect(badQueue.isClosed).toBe(true);
       good.send(ClientMessageId.Input, input(1));

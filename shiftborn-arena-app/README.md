@@ -10,7 +10,7 @@ A browser-based, top-down 3D multiplayer arena game for up to 8 players. Players
 
 ## Current state
 
-**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-026. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-027.
+**Phase:** Prototype. **Completed:** T-001 through T-007 and T-010 through T-028. **T-008:** optional tabletop task, still TODO. **Next mandatory implementation task:** T-029.
 
 T-023 added version and name authentication, authoritative welcome data, and ordered per-tick event batches. With the pinned Colyseus SDK, a protocol mismatch returns HTTP 400 with JSON `code: 4000`; the SDK join helper exposes HTTP 400 as its error code. This transport behavior was approved for T-023.
 
@@ -18,7 +18,11 @@ T-024 fills rooms with eight idle placeholder bots. Humans immediately take an e
 
 T-025 packs quick-play humans into the fullest eligible room. Code rooms match by exact six-character code, keep the first human as host, accept pending host settings, and let late joiners wait for the next match. Quick-play rooms lock at 60 seconds remaining and unlock at RESULTS.
 
-T-026 retains human seats and input history through a 30-second reconnect window. Hidden and AFK players switch to a neutral Proxy controller; final departure hands the seat to a bot or empties it and then updates the host. Bot-only rooms dispose. Graceful shutdown sends a notice, waits up to 10 seconds for the current RESULTS phase, and closes with code 4004. Real proxy behavior is T-055, client retry and resync are T-031/T-035, and RTT/clock sync is T-027.
+T-026 retains human seats and input history through a 30-second reconnect window. Hidden and AFK players switch to a neutral Proxy controller; final departure hands the seat to a bot or empties it and then updates the host. Bot-only rooms dispose. Graceful shutdown sends a notice, waits up to 10 seconds for the current RESULTS phase, and closes with code 4004. Real proxy behavior is T-055; client retry and resync are T-031/T-035.
+
+T-027 replies to private client pings with authoritative tick and monotonic server-time anchors. Private probes measure each connected human's RTT every two seconds; the median of the last ten accepted samples supplies GR-7.9 projectile spawn advance. Production client clock sync, ping scheduling and network simulation remain T-031.
+
+T-028 writes the Stage A match log and a gzipped authoritative input log for each match under `MATCH_LOG_DIR/YYYY-MM-DD/`. Run `pnpm replay <match-log>` against a `<matchId>.jsonl` file to replay its sibling input log and verify every simulation tick and the final hash. Full ranking and telemetry remain T-044 and T-130.
 
 | Stage | Goal | Gate |
 |---|---|---|
@@ -75,7 +79,7 @@ Commands become functional when the task in the last column is complete. Until t
 | `pnpm map:validate` | Validate map rules V1 to V9 | T-005 |
 | `pnpm sim:determinism` | Compare two runs of seeded matches | T-056 |
 | `pnpm test:e2e` | Run the Playwright smoke flow | T-068 |
-| `pnpm replay <match-log>` | Replay inputs and compare state hashes | T-028 |
+| `pnpm replay <match-log>` | Replay recorded inputs and verify per-tick and final state hashes | Implemented in T-028 |
 | `pnpm analyze <logs-dir>` | Build playtest metrics and reports | T-067 / T-131 |
 | `pnpm loadtest` | Run the default 20-room, 2-hour soak | T-141 |
 

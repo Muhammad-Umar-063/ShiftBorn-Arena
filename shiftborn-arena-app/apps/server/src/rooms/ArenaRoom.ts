@@ -27,7 +27,15 @@ import {
   type World,
 } from '@shiftborn/sim';
 import pino from 'pino';
+import { decodeClientStats } from '../logging/matchLog.js';
+import { MatchRecorder } from '../logging/matchRecorder.js';
 import { InputQueue } from '../net/inputQueue.js';
+import {
+  decodeTimeTuple,
+  monotonicServerTimeMs,
+  ProbeTracker,
+  rttToSpawnAdvanceTicks,
+} from '../net/ping.js';
 import {
   afkAction,
   decodeVisibility,
@@ -100,6 +108,11 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
   private readonly sessions = new Map<string, HumanSession>();
   private readonly finalCloseIds = new Set<string>();
   private readonly afkWakeIds = new Set<string>();
+  private matchLogDir = './data/matches';
+  private recorder: MatchRecorder | null = null;
+  private readonly pendingRecorderCloses = new Set<Promise<void>>();
+  protected readonly probeTracker = new ProbeTracker(() => this.monotonicNowMs());
+  private probeDisposed = false;
   private shuttingDown = false;
   private shutdownPromise: Promise<void> | null = null;
   private resultsWaitTimer: ReturnType<typeof setTimeout> | null = null;
@@ -118,11 +131,13 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     readonly trustedBuildId: string;
     readonly trustedQuickplayMode?: QuickplayMode;
     readonly trustedBotDifficulty?: BotDifficulty;
+    readonly trustedMatchLogDir?: string;
   }): void {
     if (!isValidRoomCode(options.code))
       throw new ServerError(CloseCode.InvalidRoomCode, 'Invalid room code');
     this.roomCode = options.code;
     this.trustedBuildId = options.trustedBuildId;
+    this.matchLogDir = options.trustedMatchLogDir ?? this.matchLogDir;
     this.quickplayMode = options.trustedQuickplayMode ?? 'frenzy';
     this.activeSettings = {
       botFill: this.botFillEnabled,
@@ -172,6 +187,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     };
     this.state = new ArenaState();
     this.mirrorNow();
+    this.recorder = this.createRecorder();
     this.onMessage(ClientMessageId.Input, (client, payload: unknown) => {
       const queue = this.inputQueueForSession(client.sessionId);
       if (queue === undefined) return;
@@ -222,6 +238,36 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       session.hidden = hidden;
       if (hidden) this.proxySession(session, 'hidden');
       else if (session.proxyReason === 'hidden') this.restoreHuman(session);
+    });
+    this.onMessage(ClientMessageId.Ping, (client, payload: unknown) => {
+      const clientTimeMs = decodeTimeTuple(payload);
+      if (clientTimeMs === null || !this.isAttachedHuman(client)) {
+        this.noteInvalidMessage(client);
+        return;
+      }
+      const serverTick = this.world.tick;
+      const serverTimeMs = this.monotonicNowMs();
+      client.send(ServerMessageId.Pong, [
+        clientTimeMs,
+        serverTick,
+        serverTimeMs,
+      ]);
+    });
+    this.onMessage(ClientMessageId.ProbeReply, (client, payload: unknown) => {
+      const token = decodeTimeTuple(payload);
+      if (
+        token === null ||
+        !this.isAttachedHuman(client) ||
+        !this.probeTracker.accept(client.sessionId, client, token)
+      ) this.noteInvalidMessage(client);
+    });
+    this.onMessage(ClientMessageId.ClientStats, (client, payload: unknown) => {
+      const stats = decodeClientStats(payload);
+      if (stats === null || !this.isAttachedHuman(client)) {
+        this.noteInvalidMessage(client);
+        return;
+      }
+      this.recorder?.recordClientStats(this.world.tick, client.sessionId, stats);
     });
     this.onMessage(ClientMessageId.HostSettings, (client, payload: unknown) => {
       const settings = decodeHostSettings(payload);
@@ -290,6 +336,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       id: client.sessionId,
       seat: choice.seat,
       queue,
+      inputScheme: auth.inputScheme,
       client,
       connected: true,
       hidden: false,
@@ -297,12 +344,16 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       lastMeaningfulInputTick: this.world.tick,
       afkWarned: false,
     });
+    this.markReplayCheckpoint();
+    this.probeTracker.admit(client.sessionId, client);
     this.broadcastEncodedEventsAtCurrentTick(events);
     if (this.hostId === client.sessionId) this.sendHostChangedNotice();
   }
 
   protected runSimulationStep(): void {
     // D-061: the elapsed scheduler delay never enters deterministic sim.step.
+    if (this.probeDisposed) return;
+    this.sendDueProbes();
     const nextCountdown =
       this.world.phase === Phase.Results &&
       this.world.tick >= this.world.phaseEndTick;
@@ -310,6 +361,10 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     this.restoreAfkWakes();
     const inputs: InputFrame[] = [];
     const inputPressedButtonsBySeat: (number | undefined)[] = [];
+    const spawnAdvanceTicksBySeat: number[] = Array.from(
+      { length: this.world.players.length },
+      () => 0,
+    );
     for (let seat = 0; seat < this.world.players.length; seat += 1) {
       const binding = this.inputBySeat.get(seat);
       const player = this.world.players[seat];
@@ -336,13 +391,39 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
         this.waitingIds.has(player.id)
       )
         continue;
+      const session = this.sessions.get(player.id);
+      if (
+        session?.client !== null &&
+        session?.client !== undefined &&
+        session.client.sessionId === binding.sessionId &&
+        session.connected &&
+        session.seat === seat
+      )
+        spawnAdvanceTicksBySeat[seat] = rttToSpawnAdvanceTicks(
+          this.probeTracker.medianFor(player.id),
+        );
       const applied = binding.queue.consume();
       if (applied.frame === undefined) continue;
       inputs[seat] = applied.frame;
       inputPressedButtonsBySeat[seat] = applied.pressedButtons;
     }
     const eventTick = this.world.tick;
-    const events = step(this.world, inputs, { inputPressedButtonsBySeat });
+    const recording = this.recorder?.prepareStep(this.world);
+    const events = step(this.world, inputs, {
+      inputPressedButtonsBySeat,
+      spawnAdvanceTicksBySeat,
+    });
+    if (recording !== undefined) {
+      this.recorder?.recordStep(
+        this.world, recording, events, inputs,
+        inputPressedButtonsBySeat, spawnAdvanceTicksBySeat,
+      );
+      const previous = this.recorder;
+      if (previous !== null && previous.matchId !== this.world.matchId) {
+        this.trackRecorderClose(previous.close(this.world));
+        this.recorder = this.createRecorder();
+      }
+    }
     if (nextCountdown) {
       this.waitingIds.clear();
       if (this.settingsDirty) {
@@ -477,6 +558,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       this.finalCloseIds.has(client.sessionId)
     )
       return;
+    this.probeTracker.detach(session.id, client);
     session.client = null;
     session.connected = false;
     session.proxyReason = 'drop';
@@ -486,6 +568,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     const player = this.world.players[session.seat];
     if (player?.id === session.id) player.lastHeldButtons = 0;
     setController(this.world, session.id, Controller.Proxy);
+    this.markReplayCheckpoint();
     this.mirrorNow();
     void this.allowReconnection(client, this.reconnectionWindowSeconds()).catch(
       () => undefined,
@@ -507,6 +590,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     session.proxyReason = null;
     rebaseAfk(session, this.world.tick);
     setController(this.world, session.id, Controller.Human);
+    this.markReplayCheckpoint();
     this.bindInputSource(
       client,
       session.id,
@@ -514,6 +598,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       session.queue,
       false,
     );
+    this.probeTracker.attach(session.id, client);
     this.mirrorNow();
     this.sendControl(client, Controller.Human);
     this.sendWelcome(client, { playerId: session.id, seat: session.seat });
@@ -521,6 +606,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
 
   onLeave(client: Client): void {
     this.finalizePlayerLeave(client);
+    this.probeTracker.release(client.sessionId);
     this.sessions.delete(client.sessionId);
     this.finalCloseIds.delete(client.sessionId);
     this.afkWakeIds.delete(client.sessionId);
@@ -534,6 +620,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     const playerId = binding?.playerId ?? session?.id;
     const seat = binding?.seat ?? session?.seat;
     if (playerId === undefined || seat === undefined) return;
+    this.probeTracker.release(playerId);
     if (session !== undefined) {
       session.client = null;
       session.connected = false;
@@ -546,6 +633,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       ? botIdentity(this.nextBotSerial++, seat)
       : null;
     const events = releaseHumanSeat(this.world, playerId, bot);
+    this.markReplayCheckpoint();
     if (playerId === this.hostId) this.handoverHost();
     this.mirrorNow();
     this.broadcastEncodedEventsAtCurrentTick(events);
@@ -557,6 +645,43 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       hostId: this.hostId,
       settings: this.pendingSettings,
     };
+  }
+
+  private createRecorder(): MatchRecorder {
+    const inputSchemes = new Map<string, 'mouse' | 'keys' | null>();
+    for (const session of this.sessions.values())
+      inputSchemes.set(session.id, session.inputScheme ?? null);
+    return new MatchRecorder(
+      this.world,
+      {
+        roomId: this.roomId, roomCode: this.roomCode,
+        buildId: this.trustedBuildId,
+        botDifficulty: this.activeSettings.botDifficulty,
+        inputSchemes,
+      },
+      this.matchLogDir,
+      this.warningLogger,
+    );
+  }
+
+  protected markReplayCheckpoint(): void {
+    this.recorder?.markExternalChange();
+  }
+
+  private trackRecorderClose(promise: Promise<void>): void {
+    this.pendingRecorderCloses.add(promise);
+    void promise.then(
+      () => this.pendingRecorderCloses.delete(promise),
+      (error: unknown) => {
+        this.pendingRecorderCloses.delete(promise);
+        this.warningLogger.error({ err: error }, 'match_log_close_error');
+      },
+    );
+  }
+
+  private async flushRecorders(): Promise<void> {
+    if (this.recorder !== null) await this.recorder.close(this.world);
+    await Promise.all(this.pendingRecorderCloses);
   }
 
   private sendHostChangedNotice(): void {
@@ -615,6 +740,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       if (this.waitingIds.has(binding.playerId)) binding.queue.discardPending();
     }
     this.updateMirrorContext();
+    this.markReplayCheckpoint();
   }
 
   private updateQuickplayLock(): void {
@@ -636,6 +762,42 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     client.leave(CloseCode.InvalidInput);
   }
 
+  protected monotonicNowMs(): number {
+    return monotonicServerTimeMs();
+  }
+
+  private isAttachedHuman(client: Client): boolean {
+    const session = this.sessions.get(client.sessionId);
+    const binding = this.inputBySession.get(client.sessionId);
+    const player = session && this.world.players[session.seat];
+    return (
+      session?.client === client &&
+      session.connected &&
+      binding?.playerId === session.id &&
+      binding.seat === session.seat &&
+      player?.id === session.id &&
+      !player.isBot
+    );
+  }
+
+  private noteInvalidMessage(client: Client): void {
+    const queue = this.inputBySession.get(client.sessionId)?.queue;
+    if (queue?.noteUnknownMessage()) this.kickInvalidInput(client);
+  }
+
+  private sendDueProbes(): void {
+    if (!this.probeTracker.due(this.world.tick)) return;
+    const sessions = [...this.sessions.values()].sort(
+      (left, right) => left.seat - right.seat,
+    );
+    for (const session of sessions) {
+      const client = session.client;
+      if (client === null || !this.isAttachedHuman(client)) continue;
+      const token = this.probeTracker.issue(session.id, client);
+      if (token !== undefined) client.send(ServerMessageId.Probe, [token]);
+    }
+  }
+
   private proxySession(
     session: HumanSession,
     reason: Exclude<ProxyReason, null>,
@@ -651,6 +813,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       if (session.client !== null)
         this.sendControl(session.client, Controller.Proxy);
     }
+    this.markReplayCheckpoint();
     this.mirrorNow();
   }
 
@@ -666,6 +829,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       if (session.client !== null)
         this.sendControl(session.client, Controller.Human);
     }
+    this.markReplayCheckpoint();
     this.mirrorNow();
   }
 
@@ -766,6 +930,8 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       this.world.tick,
     );
     if (waitMs > 0) await this.waitForResultsOrTimeout(waitMs);
+    this.fixedLoop.stop();
+    await this.flushRecorders();
     await this.disconnect(CloseCode.ServerShuttingDown);
   }
 
@@ -777,11 +943,14 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     return this.fixedLoop.metrics;
   }
 
-  onDispose(): void {
+  async onDispose(): Promise<void> {
+    this.probeDisposed = true;
+    this.probeTracker.clear();
     this.fixedLoop?.stop();
     this.finishResultsWait();
     this.sessions.clear();
     this.finalCloseIds.clear();
     this.afkWakeIds.clear();
+    await this.flushRecorders();
   }
 }

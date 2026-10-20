@@ -2,7 +2,14 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "lib": ["ES2022", "DOM"],
+    "types": ["node"],
+    "typeRoots": ["../../node_modules/.pnpm/@types+node@26.6.5/node_modules/@types"],
+    "paths": {
+      "@shiftborn/shared": ["../../packages/shared/dist/index.d.ts"],
+      "@shiftborn/sim": ["../../packages/sim/dist/index.d.ts"]
+    }
   },
   "include": ["src/**/*.ts"]
 }

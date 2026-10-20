@@ -43,9 +43,9 @@ class LifecycleRoom extends ArenaRoom {
     this.leaves += 1;
     super.onLeave(client);
   }
-  override onDispose(): void {
+  override async onDispose(): Promise<void> {
     this.disposed = true;
-    super.onDispose();
+    await super.onDispose();
   }
   protected override reconnectionWindowSeconds(): number {
     const seconds = super.reconnectionWindowSeconds();

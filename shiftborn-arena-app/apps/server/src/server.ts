@@ -90,6 +90,7 @@ export function createServer(
       trustedBuildId: config.buildId,
       trustedQuickplayMode: config.quickplayMode,
       trustedBotDifficulty: config.botDifficulty,
+      trustedMatchLogDir: config.matchLogDir,
     })
     .filterBy(['code'])
     .sortBy({ clients: -1 });

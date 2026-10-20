@@ -14,6 +14,7 @@ export interface HumanSession {
   readonly id: string;
   readonly seat: number;
   readonly queue: InputQueue;
+  readonly inputScheme?: 'mouse' | 'keys' | null;
   client: Client | null;
   connected: boolean;
   hidden: boolean;

@@ -20,7 +20,7 @@
     "sim:determinism": "node -e \"console.log('not implemented yet (T-056)')\"",
     "map:validate": "pnpm --filter @shiftborn/shared build && pnpm --filter @shiftborn/map-validator build && pnpm --filter @shiftborn/map-validator validate",
     "analyze": "node -e \"console.log('not implemented yet (T-067)')\"",
-    "replay": "node -e \"console.log('not implemented yet (T-028)')\"",
+    "replay": "pnpm --filter @shiftborn/shared build && pnpm --filter @shiftborn/sim build && pnpm --filter @shiftborn/replay build && node tools/replay/dist/cli.js",
     "loadtest": "node -e \"console.log('not implemented yet (T-141)')\""
   },
   "devDependencies": {

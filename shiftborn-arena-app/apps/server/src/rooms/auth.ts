@@ -9,6 +9,7 @@ import {
 export interface AuthenticatedPlayer {
   readonly name: string;
   readonly code: string;
+  readonly inputScheme: 'mouse' | 'keys' | null;
 }
 
 export function hasValidRoomCode(options: unknown): boolean {
@@ -48,7 +49,9 @@ export function authenticatePlayer(
   const name = sanitizePlayerName(fields.name, nameSeed);
   if (name === null)
     throw new ServerError(ErrorCode.AUTH_FAILED, 'Invalid player name');
-  return { name, code };
+  const inputScheme = fields.inputScheme === 'mouse' || fields.inputScheme === 'keys'
+    ? fields.inputScheme : null;
+  return { name, code, inputScheme };
 }
 
 /** T-024 reads only this validated auth result, never raw join options. */
@@ -58,7 +61,8 @@ export function authenticatedPlayer(
   if (typeof value !== 'object' || value === null) return null;
   const name = (value as Record<string, unknown>).name;
   const code = (value as Record<string, unknown>).code;
+  const scheme = (value as Record<string, unknown>).inputScheme;
   return typeof name === 'string' && isValidRoomCode(code)
-    ? { name, code }
+    ? { name, code, inputScheme: scheme === 'mouse' || scheme === 'keys' ? scheme : null }
     : null;
 }

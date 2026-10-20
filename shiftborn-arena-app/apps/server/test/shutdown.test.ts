@@ -29,9 +29,9 @@ class ShutdownRoom extends ArenaRoom {
     super.onBeforeShutdown();
   }
 
-  override onDispose(): void {
+  override async onDispose(): Promise<void> {
     this.disposed = true;
-    super.onDispose();
+    await super.onDispose();
   }
 
   protected override waitForResultsOrTimeout(

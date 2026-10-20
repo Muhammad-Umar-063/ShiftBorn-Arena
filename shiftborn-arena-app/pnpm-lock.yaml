@@ -253,7 +253,14 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
 
-  tools/replay: {}
+  tools/replay:
+    dependencies:
+      '@shiftborn/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@shiftborn/sim':
+        specifier: workspace:*
+        version: link:../../packages/sim
 
 packages:
 

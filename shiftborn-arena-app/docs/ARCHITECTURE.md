@@ -415,28 +415,26 @@ pino JSON to stdout, collected by Docker. Room create and dispose, joins and lea
 
 ### 9.2 Match log
 
-One JSON Lines file per match: `MATCH_LOG_DIR/YYYY-MM-DD/<matchId>.jsonl`. Every line has `t` (tick), `type` and fields. Written from the server only.
+Each match writes `MATCH_LOG_DIR/YYYY-MM-DD/<matchId>.jsonl`. The UTC date is selected at match start and stays fixed through midnight. The server validates the match ID before using it as a filename. Each line is one JSON object with authoritative pre-step tick `t` and `type`. The first line is `match_start`.
+
+T-028 writes the Stage A subset only:
 
 | Type | Fields |
 |---|---|
-| `match_start` | matchId, roomId, roomCode (empty for quick play), mode, seed, balanceVersion, mapId, buildId, seats (id, name, isBot, controller, inputScheme), botDifficulty |
-| `player_join`, `player_leave` | playerId, isBot, sessionId, reason |
-| `controller_change` | playerId, from, to, reason (hidden, afk, drop, reconnect) |
-| `morph` | playerId, from, to, fluxBefore, hpFrac, phase tick |
-| `morph_denied` | playerId, target, reason |
-| `shot` | playerId, weapon, aimSource (sampled: every shot counted in stats; individual lines only every 10th to limit size) |
-| `damage` | attackerId, victimId, attackerForm, victimForm, cause, amount, distance, tags, aimSource |
-| `ability` | playerId, ability, result (hit count, cancelled) |
-| `death` | victimId, killerId, assisters, killerForm, victimForm, cause, position |
-| `shard_pickup` | playerId, value, source (cluster or drop) |
-| `zone_state` | state, holderId |
-| `client_stats` | playerId, fpsMedian, fpsP5, rttMs, corrections, inputScheme, windowSize, browser, hiddenMs, errors |
-| `room_error` | roomId, matchId, tick, message (an internal error ended the room) |
-| `match_end` | ranking, per-player stats (GR-12.4), durationTicks, humans, bots |
+| `match_start` | matchId, roomId, roomCode (empty for quick play), mode, roomSeed, matchIndex, balanceVersion, mapId, buildId, eight seats (id, name, isBot, controller, inputScheme or null), botDifficulty |
+| `morph` | playerId, from, to, pre-step fluxBefore and hpFrac, phase; one line per successful `morphStart` |
+| `damage` | attackerId, victimId, attackerForm, victimForm, cause, final amount, tags |
+| `death` | victimId, killerId, assister IDs, killerForm, victimForm, cause, victim position |
+| `client_stats` | authenticated playerId, fpsMedian, fpsP5, rttMs, corrections, inputScheme, windowSize, browser, hiddenMs, errors |
+| `match_end` | post-transition finalHash, durationTicks, human and bot counts, copied current per-player stats; exactly once on PLAYING to RESULTS |
+
+T-044 supplies authoritative ranking and final stat accounting. T-130 extends the event catalog with joins, leaves, controller changes, denied morphs, shots, abilities, shards, zone state, room errors and session aggregation. Those events are not invented by T-028. The client-provided `client_stats.rttMs` is informational and never drives GR-7.9 spawn advance.
 
 ### 9.3 Input log
 
-One gzipped JSON Lines file per match: one line per tick with every seat's input frame and controller. Used by `tools/replay` and for bug reports. Kept 30 days.
+The sibling input file is `MATCH_LOG_DIR/YYYY-MM-DD/<matchId>.inputs.jsonl.gz`, compressed with Node gzip. Its internal format version is separate from `PROTOCOL_VERSION`. It contains one header with the trusted map ID, `(roomSeed, matchIndex)`, balance version/hash, initial detached world snapshot and initial hash; a pre-step checkpoint only when server-owned gameplay state changed outside `sim.step`; one tick record per authoritative step; and one end record. Tick records contain all eight applied frames or null, all eight controllers or null, exact merged button edges, exact server-measured spawn-advance ticks and the post-step `hashWorld` result. They record repeated applied frames, not raw packets.
+
+A checkpoint stores a detached gameplay snapshot with its preceding and replacement hashes. Replay verifies the preceding hash before applying it and rebuilds static map runtime data from the trusted map ID. Results ticks remain in the same input file until the next COUNTDOWN starts. A natural `match_end.finalHash` is checked at the PLAYING-to-RESULTS tick; the input end record checks the final recorded prefix, including later RESULTS ticks. An early disposal writes no fake `match_end` and its end record checks the unfinished prefix. `pnpm replay <match-log>` validates both files, executes each real sim step and stops at the first divergent tick with expected and actual hashes. Input logs are used for bug reports; T-130 owns retention policy.
 
 ### 9.4 Sessions
 

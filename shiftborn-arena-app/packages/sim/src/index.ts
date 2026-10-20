@@ -19,6 +19,8 @@ export type { SimEvent, SimEventName } from './events.js';
 export { step, TICK_SYSTEMS } from './step.js';
 export type { StepContext } from './step.js';
 export { hashWorld } from './hash.js';
+export { snapshotWorld, restoreWorld, isWorldSnapshot } from './snapshot.js';
+export type { WorldSnapshot } from './snapshot.js';
 export { subtract, dot } from './math/vec2.js';
 export type { Vec2 } from './math/vec2.js';
 export {
