@@ -39,7 +39,7 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-014 | Forms and morphing | T-013 | M | DONE (2026-10-20) |
 | T-015 | Health and damage pipeline | T-014 | M | DONE (2026-10-20) |
 | T-016 | Form weapons and projectiles | T-015 | L | DONE (2026-10-20) |
-| T-017 | Death, credit, respawn and spawn protection | T-016 | M | TODO |
+| T-017 | Death, credit, respawn and spawn protection | T-016 | M | DONE (2026-10-20) |
 | T-018 | Flux and shards | T-017 | M | TODO |
 | T-019 | Dash | T-014 | S | TODO |
 | T-020 | Spike: Colyseus netcode helpers | T-006, T-013 | M | TODO |
@@ -671,3 +671,4 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-014 | M | Not tracked | 2026-10-20 | Balance-backed form stats, morph input edges, ordered validation and events, exact completion and cooldown, match/death/respawn seams. Simultaneous target priority remains OQ-014. |
 | T-015 | M | Not tracked | 2026-10-20 | Pure matchup and front-arc damage, health and death threshold, immunity, assist-window log, internal damage events, and shared display formulas. Corrected stale GR-6.2 armor wording per D-013. |
 | T-016 | L | Not tracked | 2026-10-20 | Per-form firing and heat, deterministic projectile pool, swept walls/cover/players, scatter and Rail damage rules, spawn advance and typed events. AT-WPN-13 KO credit remains T-017; shot-index contract is OQ-015. |
+| T-017 | M | Not tracked | 2026-10-20 | Ordered death credit and assists, attack-time recap, exact respawn and seeded spawn selection, centralized protection. Completed the AT-WPN-13 KO-credit portion deferred from T-016. Flux rewards and drops remain T-018. |

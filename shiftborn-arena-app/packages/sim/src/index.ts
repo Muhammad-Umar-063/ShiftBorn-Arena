@@ -5,6 +5,7 @@ export type {
   MapRuntime,
   PlayerRecord,
   PlayerStats,
+  PendingDeath,
   Projectile,
   Shard,
   World,
@@ -59,6 +60,13 @@ export {
 } from './morph.js';
 export type { MorphCompletion, MorphDecision } from './morph.js';
 export { applyDamage } from './damage.js';
+export { counterForm, finalizeDeaths } from './death.js';
+export { respawnPlayer, respawnDuePlayers } from './respawn.js';
+export {
+  isSpawnProtected,
+  grantSpawnProtection,
+  endSpawnProtection,
+} from './protection.js';
 export { calculateDamage } from './damageMath.js';
 export type {
   AttackSource,

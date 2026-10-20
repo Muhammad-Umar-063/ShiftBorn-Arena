@@ -3,7 +3,6 @@ import {
   AimSource,
   BALANCE,
   Controller,
-  DERIVED,
   Form,
   Phase,
   WeaponId,
@@ -12,6 +11,7 @@ import type { Vec2 } from './math/vec2.js';
 import { emitEvent } from './events.js';
 import { chooseSpawnPoint } from './spawns.js';
 import { removeOwnedProjectiles } from './projectiles.js';
+import { grantSpawnProtection } from './protection.js';
 import type { World } from './world.js';
 
 export interface PlayerStats {
@@ -247,7 +247,7 @@ export function addPlayer(
     resetPlayerForMatch(record, world.tick);
     record.pos = { x: spawn.x, y: spawn.y };
     if (world.phase === Phase.Playing) {
-      record.protectedEndTick = world.tick + DERIVED.match.spawnProtectionTicks;
+      grantSpawnProtection(record, world.tick);
     }
     emitEvent(world, { type: 'spawn' });
   }

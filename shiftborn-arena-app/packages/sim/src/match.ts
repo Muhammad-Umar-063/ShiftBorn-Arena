@@ -4,6 +4,7 @@ import { resetPlayerForMatch } from './player.js';
 import { clearProjectiles } from './projectiles.js';
 import { sfc32, shuffle } from './rng.js';
 import { rememberSpawn } from './spawns.js';
+import { grantSpawnProtection } from './protection.js';
 import type { World } from './world.js';
 
 /** GR-2.10: a collision-free textual encoding of the two safe integer inputs. */
@@ -41,6 +42,7 @@ export function startMatch(world: World): void {
     world.map.spawnPoints.map((_, index) => index),
   );
   world.recentSpawns = [];
+  world.pendingDeaths = [];
   clearProjectiles(world);
   for (const cover of world.cover) cover.intact = true;
   for (let seat = 0, assignment = 0; seat < world.players.length; seat += 1) {
@@ -66,9 +68,7 @@ export function advancePhase(world: World): void {
     world.phase = Phase.Playing;
     world.phaseEndTick = world.tick + DERIVED.match.durationTicks;
     for (const player of world.players) {
-      if (player?.alive)
-        player.protectedEndTick =
-          world.tick + DERIVED.match.spawnProtectionTicks;
+      if (player?.alive) grantSpawnProtection(player, world.tick);
     }
     emitEvent(world, { type: 'phase' });
   } else if (world.phase === Phase.Playing) {

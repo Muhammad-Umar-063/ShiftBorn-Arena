@@ -5,6 +5,7 @@ import type { Vec2 } from './math/vec2.js';
 /** GR-6.3, GR-7.8: captured when a shot or ability starts. */
 export interface AttackSource {
   readonly id: string;
+  readonly name?: string;
   readonly seat: number;
   readonly form: Form;
 }

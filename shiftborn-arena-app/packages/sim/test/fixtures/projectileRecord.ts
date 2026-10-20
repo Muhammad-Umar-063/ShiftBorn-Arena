@@ -5,6 +5,7 @@ export function projectileRecord(id: number): Projectile {
   return {
     id,
     ownerId: 'fixture-owner',
+    ownerName: 'Fixture Owner',
     ownerSeat: 0,
     ownerForm: Form.Runner,
     weapon: WeaponId.PulsePistol,

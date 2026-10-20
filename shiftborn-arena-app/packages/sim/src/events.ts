@@ -56,6 +56,8 @@ type SimpleEventName = Exclude<
   | 'projectileExpire'
   | 'blocked'
   | 'overheat'
+  | 'death'
+  | 'respawn'
 >;
 export type SimEvent =
   | { [Name in SimpleEventName]: { readonly type: Name } }[SimpleEventName]
@@ -67,6 +69,29 @@ export type SimEvent =
       readonly endTick: number;
     }
   | { readonly type: 'morphEnd'; readonly seat: number; readonly form: Form }
+  | {
+      readonly type: 'death';
+      readonly victimId: string;
+      readonly victimSeat: number;
+      readonly victimForm: Form;
+      readonly killerId: string;
+      readonly killerSeat: number;
+      readonly killerName: string;
+      readonly killerForm: Form;
+      readonly cause: Cause;
+      readonly finalDamage: number;
+      readonly counterForm: Form;
+      readonly assisters: readonly {
+        readonly id: string;
+        readonly seat: number;
+      }[];
+    }
+  | {
+      readonly type: 'respawn';
+      readonly seat: number;
+      readonly pos: Vec2;
+      readonly protectedEndTick: number;
+    }
   | {
       readonly type: 'morphDenied';
       readonly seat: number;

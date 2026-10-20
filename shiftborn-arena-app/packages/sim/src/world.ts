@@ -1,5 +1,6 @@
 import { BALANCE, Phase, type MapData, type Mode } from '@shiftborn/shared';
 import type { SimEvent } from './events.js';
+import type { PendingDeath } from './death.js';
 import { sfc32, type Rng } from './rng.js';
 import { createMapRuntime, type MapRuntime } from './map/collisionIndex.js';
 import { startMatch } from './match.js';
@@ -10,6 +11,7 @@ export type { MapRuntime } from './map/collisionIndex.js';
 export type CoverState = { readonly id: string; intact: boolean };
 export type { PlayerRecord, PlayerStats } from './player.js';
 export type { Projectile } from './projectiles.js';
+export type { PendingDeath } from './death.js';
 export type Shard = { readonly id: number };
 export type ClusterState = Readonly<Record<string, unknown>>;
 export type ZoneState = Readonly<Record<string, unknown>>;
@@ -34,6 +36,7 @@ export interface World {
   clusters: ClusterState[];
   zone: ZoneState | null;
   recentSpawns: number[];
+  pendingDeaths: PendingDeath[];
   events: SimEvent[];
 }
 
@@ -63,6 +66,7 @@ export function createWorld(opts: {
     clusters: [],
     zone: null,
     recentSpawns: [],
+    pendingDeaths: [],
     events: [],
   };
   startMatch(world);

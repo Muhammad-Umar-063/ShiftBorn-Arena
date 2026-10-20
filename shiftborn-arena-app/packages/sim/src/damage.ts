@@ -8,6 +8,7 @@ import { emitEvent } from './events.js';
 import type { Vec2 } from './math/vec2.js';
 import { cancelMorphOnDeath } from './morph.js';
 import { PHASE_POLICY } from './phasePolicy.js';
+import { isSpawnProtected } from './protection.js';
 import type { PlayerRecord } from './player.js';
 import type { World } from './world.js';
 
@@ -33,7 +34,7 @@ export function applyDamage(
   if (
     !PHASE_POLICY[world.phase].damage ||
     !victim.alive ||
-    world.tick < victim.protectedEndTick
+    isSpawnProtected(victim, world.tick)
   )
     return IGNORED_DAMAGE;
 
@@ -64,6 +65,23 @@ export function applyDamage(
     tick: world.tick,
     amount: calculated.finalDamage,
   });
+  if (lethal) {
+    const killer = world.players.find((player) => player?.id === attacker.id);
+    world.pendingDeaths.push(
+      Object.freeze({
+        victimId: victim.id,
+        victimSeat: victim.seat,
+        victimForm,
+        killerId: attacker.id,
+        killerSeat: attacker.seat,
+        killerName: attacker.name ?? killer?.name ?? attacker.id,
+        killerForm: attacker.form,
+        cause,
+        finalDamage: calculated.finalDamage,
+        deathTick: world.tick,
+      }),
+    );
+  }
   emitEvent(world, {
     type: 'damage',
     attackerId: attacker.id,

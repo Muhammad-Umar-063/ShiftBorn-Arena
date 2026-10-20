@@ -6,6 +6,7 @@ import {
   type InputFrame,
 } from '@shiftborn/shared';
 import { advanceAim } from './aim.js';
+import { finalizeDeaths } from './death.js';
 import type { SimEvent } from './events.js';
 import { emitEvent } from './events.js';
 import { advanceMovement, decodeMoveDirection } from './movement.js';
@@ -17,6 +18,7 @@ import {
   morphKnockbackImmune,
 } from './morph.js';
 import { PHASE_POLICY } from './phasePolicy.js';
+import { respawnDuePlayers } from './respawn.js';
 import type { World } from './world.js';
 import { advancePhase } from './match.js';
 import {
@@ -258,8 +260,8 @@ export const TICK_SYSTEMS = [
   { name: 'movement', run: movementSystem },
   { name: 'weapons', run: weaponsSystem },
   { name: 'projectiles', run: projectilesSystem },
-  { name: 'deaths', run: emptySystem },
-  { name: 'respawns', run: emptySystem },
+  { name: 'deaths', run: finalizeDeaths },
+  { name: 'respawns', run: respawnDuePlayers },
   { name: 'statusTimers', run: emptySystem },
   { name: 'fluxAndShards', run: emptySystem },
   { name: 'zone', run: emptySystem },

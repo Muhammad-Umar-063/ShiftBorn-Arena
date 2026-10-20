@@ -10,6 +10,7 @@ import {
 import type { Vec2 } from './math/vec2.js';
 import { queryWallIndexes } from './map/collisionIndex.js';
 import type { PlayerRecord } from './player.js';
+import { endSpawnProtection, isSpawnProtected } from './protection.js';
 import {
   railDistanceMul,
   scatterAngles,
@@ -23,6 +24,7 @@ type MutableVec2 = { x: number; y: number };
 export interface Projectile {
   id: number;
   ownerId: string;
+  ownerName: string;
   ownerSeat: number;
   ownerForm: Form;
   weapon: WeaponId;
@@ -131,6 +133,7 @@ export function spawnProjectile(
   const projectile = world.projectilePool.pop() ?? {
     id: 0,
     ownerId: '',
+    ownerName: '',
     ownerSeat: 0,
     ownerForm: Form.Runner,
     weapon: WeaponId.PulsePistol,
@@ -149,6 +152,7 @@ export function spawnProjectile(
   projectile.id = world.nextProjectileId;
   world.nextProjectileId += 1;
   projectile.ownerId = player.id;
+  projectile.ownerName = player.name;
   projectile.ownerSeat = player.seat;
   projectile.ownerForm = player.form;
   projectile.weapon = weapon;
@@ -212,7 +216,7 @@ export function fireProjectiles(
     if (projectile !== null) spawned.push(projectile);
   }
   // GR-7.4: even an immediate muzzle impact counts as a fired shot.
-  player.protectedEndTick = world.tick;
+  endSpawnProtection(player, world.tick);
   return spawned;
 }
 
@@ -300,7 +304,7 @@ function advanceAt(world: World, index: number): boolean {
   if (contact?.kind === 'player') {
     const player = world.players[contact.seat];
     if (player !== null && player !== undefined) {
-      if (world.tick < player.protectedEndTick) {
+      if (isSpawnProtected(player, world.tick)) {
         emitEvent(world, {
           type: 'blocked',
           id: projectile.id,
@@ -317,6 +321,7 @@ function advanceAt(world: World, index: number): boolean {
           world,
           {
             id: projectile.ownerId,
+            name: projectile.ownerName,
             seat: projectile.ownerSeat,
             form: projectile.ownerForm,
           },
