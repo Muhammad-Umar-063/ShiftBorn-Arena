@@ -14,6 +14,7 @@ All message names, numeric type ids and encodings live in `packages/shared/src/p
 
 1. **Inputs up, state down.** Clients send input frames. The server sends state patches and event batches. Clients never send positions, damage or results (D-036).
 2. **One input per tick.** Each 30 Hz client tick produces exactly one input frame with a sequence number.
+   A newly pressed gameplay key can pull the next tick's sample forward for AT-NET-06; the scheduled slot is then consumed without sending a duplicate frame.
 3. **Redundancy instead of retransmission.** Each input packet repeats the last 3 frames, so a delayed packet is covered by the next one.
 4. **Predict yourself, interpolate others.** The local player is predicted with the shared sim and corrected by the server. Everyone else is drawn 100 ms in the past between two known states.
 5. **Events for things that happen; state for things that are.** Positions, health and timers are state. Shots, hits, deaths and pickups are events.
@@ -25,7 +26,7 @@ All message names, numeric type ids and encodings live in `packages/shared/src/p
 - **Transport:** Colyseus over WebSocket. `ws://` locally, `wss://` in the playtest deployment (Caddy terminates TLS).
 - **State:** `@colyseus/schema` binary delta patches.
 - **Messages:** Colyseus messages with numeric type ids (smaller than strings), payloads encoded by Colyseus (msgpack). Payloads are flat arrays where noted, to keep them small.
-- **Protocol version:** `PROTOCOL_VERSION = 1` (initial integer version) in `protocol.ts`. Bump it on any later change to messages, schema or input encoding. The client sends it in the join options; the server rejects a mismatch with close code 4000 and the client shows "A new version is available. Reload."
+- **Protocol version:** `PROTOCOL_VERSION = 2` in `protocol.ts` (D-071 Schema extension). Bump it on any later change to messages, schema or input encoding. The client sends it in the join options; the server rejects a mismatch with close code 4000 and the client shows "A new version is available. Reload."
 - **Balance check:** the `welcome` message carries `balanceVersion` and `balanceHash` (a stable hash of the `BALANCE` object). If the client's hash differs, it shows the same reload prompt. Prediction with different numbers would cause constant corrections.
 
 ---
@@ -123,19 +124,26 @@ PlayerState
   abilityReadyRunner, abilityReadyBeast, abilityReadyTurret: uint32
   heat: float32, overheatEndTick: uint32
   stunEndTick: uint32
+  ccImmuneEndTick: uint32
   knockbackEndTick: uint32, kbvx, kbvy: float32
   protectedEndTick: uint32
   respawnTick: uint32
   kos, deaths, assists: uint16
   points: float32, damageDealt: float32
   lastInputSeq: uint32         last input applied by the server for this player
+  lastButtonInputSeq: uint32   0 before any button sample; client restores -1
+  lastHeldButtons: uint16      held-button mask for rising-edge replay
+  lastShotInputSeq: uint32     0 before any shot; client restores -1
+  nextShotIdx: uint32          D-069 index for the current shot input sequence
+  weaponRunnerNextShotIn, weaponBeastNextShotIn,
+  weaponTurretNextShotIn: float32  per-form fire timers in seconds
   aimSource: uint8
 
 ShardState
   x, y: float32, value: uint8, kind: uint8 (0 small, 1 large, 2 drop), expiresTick: uint32 (0 = never)
 ```
 
-Everything any client needs to predict the local player is in `PlayerState`. The full state goes to every client in the prototype (D-039).
+The full listed state goes to every client in the prototype (D-039). D-071 extends `PlayerState` in protocol version 2 with the local prediction restoration fields listed above. Clients validate and copy them before replay. Shot-index allocation is defined by D-069.
 
 Bot difficulty uses D-063 codes in both existing fields: 0 Easy, 1 Normal, 2 Hard. `nextMode` uses 0 Frenzy and 1 Zone Frenzy.
 
@@ -234,6 +242,8 @@ Buttons (held state, not edges):
 
 Most of these duplicate state that also arrives in patches (for example shard lists). The event exists so the client can play effects and sounds at the right moment. **State is the truth; events are for presentation**, except projectile events, which exist only as events (D-034).
 
+**Projectile shot index (D-069).** `shotIdx` starts at zero for the first shot tagged with a new accepted `inputSeq` and increases in firing order. Repeating a held frame with the same sequence on later simulation ticks continues its index. Scatter pellets consume consecutive indexes in fixed pattern order. A different accepted input sequence starts a new index stream when its first shot fires. D-069 did not change the `(inputSeq, shotIdx)` event fields. D-071 later bumped the protocol version for prediction restoration fields.
+
 ### 5.4 Server input processing
 
 Per player, the server keeps a buffer of frames ordered by `seq` (max `net.inputBufferMax` = 8; when full, the oldest is dropped and a counter increments).
@@ -246,6 +256,8 @@ Each tick, for each human seat:
 2. Else if the buffer has frames, consume 1.
 3. Else repeat the last applied frame (no new edges, because the held bits are unchanged).
 4. Rising edges are computed against the previously applied frame's buttons.
+
+If two or more distinct morph-target rising edges land in one simulation tick, including a two-frame catch-up union, the sim ignores those morph requests (D-064). A target held before that tick is not a new edge. Other input and held-button history continue.
 5. Set `lastInputSeq` to the newest consumed `seq`.
 
 Bot and proxy seats get their frame from the bot controller (`docs/BOT_SPEC.md`), built the same way.
@@ -268,6 +280,8 @@ Each client tick:
 What is predicted: position, velocity, aim (with the Turret cap), morph start and end (if the last known Flux covers the cost and the cooldown is ready), Dash movement, Ram Charge windup and movement (stopping at walls and cover only), Rail Shot charge visuals, cooldown timers, fire timers and heat.
 
 What is never predicted: damage, deaths, Flux gains, shard pickups, Ram contacts, KOs, scores.
+
+T-040 owns the shared step and conditional exact equivalence under D-067/D-068. T-035 owns the browser pending queue, authoritative restoration, replay, correction counting, snap/smoothing and reset cases. D-071 resolves the restoration wire contract from OQ-021.
 
 ### 6.2 Reconciling
 
@@ -297,8 +311,10 @@ When a patch updates the local `PlayerState`:
 - Find the two buffered samples around the render time and interpolate position linearly and aim along the shorter arc. Discrete fields (form, alive, ability phase) switch when the render time passes the sample that changed them.
 - If the render time is past the newest sample: extrapolate with velocity for up to 100 ms, then hold.
 - If two consecutive samples are more than 5 m apart (respawn), snap instead of interpolating.
+- Presentation-only catch-up after a delayed patch is limited to 0.599 m per rendered frame (a 1 mm arithmetic margin under AT-NET-08's 0.6 m limit). This does not alter authoritative samples or the >5 m/respawn snap rule.
 - World effects for events (projectile flights, impacts, Rail Shot beams, remote morph bursts, deaths of others) play on the same render timeline: an event for tick `T` plays when the render time reaches `T`.
 - HUD changes for the local player (own health, Flux, damage taken direction, own death, hit markers for own hits, death recap) apply when the message arrives, for responsiveness.
+- The client keeps one-second, stable-player-ID histories and queues validated event tuples before creating effects. A BotReplaced event carries the new ID until its first Schema patch, so a reused seat cannot rebind an earlier queued event. Later HUD, projectile, and audio tasks consume typed local feedback and delayed world deliveries.
 
 ---
 

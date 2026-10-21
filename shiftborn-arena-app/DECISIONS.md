@@ -10,7 +10,7 @@ Approved design and technical decisions for **Shiftborn Arena**. This file is bi
 - Only Hamza (project owner) approves decisions. A coding agent never adds an `Approved` entry on its own. Agents propose changes in `OPEN_QUESTIONS.md`.
 - Status values: `Proposed` (an agent filled a reserved entry from section 5; Hamza approves it only after reviewing the evidence), `Approved`, `Approved (provisional)` (stands until a playtest or spike says otherwise), `Superseded by D-xxx`.
 
-Last updated: 2026-10-16.
+Last updated: 2026-10-21.
 
 ---
 
@@ -187,6 +187,8 @@ Last updated: 2026-10-16.
 - **Decision:** Simulation coordinates: x east, y north, meters, origin at the map center. Angles in radians, 0 = east, counter-clockwise positive. Three.js world mapping: sim (x, y) → world (x, 0, -y), so north is "up" on screen with the fixed camera. `docs/BALANCE.md` stores human units (degrees, seconds); `packages/shared` converts them once at load.
 - **Status:** Approved.
 
+Implementation note (2026-10-21): The requested TPP/FPP camera views follow the player's aim. D-046's coordinate mapping remains in force; its fixed-camera screen-orientation explanation describes the earlier presentation.
+
 ### D-047 Process
 - **Decision:** Work is an ordered task queue (`TASKS.md`), mirrored on the GitHub Project board. Whoever is free takes the top unblocked task. No per-person assignments. When a spec has a gap, the agent writes it in `OPEN_QUESTIONS.md`, does not invent a rule, and takes the next unblocked task.
 - **Status:** Approved.
@@ -268,3 +270,45 @@ TypeScript 7.0.2 is the newest release, but typescript-eslint 8.71.2 declares su
 - **Decision:** Encode Easy as 0, Normal as 1, and Hard as 2 in the existing `RoomSettings.botDifficulty` and `hostSettings.botDifficulty` uint8 fields.
 - **Status:** Approved by Hamza (confirmed in conversation, 2026-10-20).
 - **Task:** T-025. The existing protocol fields had no documented numeric mapping.
+
+### D-064 Ambiguous morph input edges
+
+- **Decision:** If two or more distinct morph-target buttons gain rising edges in one simulation tick, ignore those morph requests. Do not choose a priority form, begin a morph, spend Flux, or emit a new morph event for that ambiguous request. An existing morph, ordinary timers and Flux regeneration continue. Movement, aim, fire, ability input and held-button history continue normally. A button already held before the tick does not count as a new rising edge when another target is pressed.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-014 option B).
+- **Task:** T-034 verification of the T-014 sim behavior.
+
+### D-065 Interim FPP mouse controls
+
+- **Decision:** Keep FPP mouse aim disabled until a detailed rule is approved. Mouse movement does not change aim in FPP. Keep the FPP camera and V switch. Show the system cursor and hide the aiming reticle in FPP. Do not use pointer lock. This interim behavior does not block T-034 and does not establish complete FPP playability; the future control rule remains open.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-017 option C).
+- **Task:** T-034; follow-up OQ-018.
+
+### D-066 Staged T-031 acceptance
+
+- **Decision:** T-031 may finish when its production networking requirements and AT-NET-19 genuinely pass. AT-NET-17 retains its full manual requirement: at `?lag=150&loss=2`, the game stays playable without state decode errors. Attempt it after T-034, and require any remaining verification in T-068 before the Fun Gate. Schema delivery, movement checks and this staged approval alone do not count as AT-NET-17 passing.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-016 option A).
+- **Task:** T-031 and T-068.
+
+### D-067 T-040 and T-035 ownership
+
+- **Decision:** T-040 owns the shared `LocalPredictState` and `predictStep` contract and its simulation equivalence tests. T-035 owns the browser project-sequence pending queue, authoritative restoration, replay, correction counting, snap and 100 ms visual smoothing, and death/respawn/visibility/reconnect resets. This supersedes only D-061's assignment of those client reconciliation and presentation tasks to T-040; D-061's selected custom netcode behavior and thresholds remain in force.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-019 option A).
+- **Task:** T-040 and T-035.
+
+### D-068 T-040 prediction equivalence boundary
+
+- **Decision:** T-040 compares every predictable local field exactly after each tick when both predictor and full server step receive the same authoritative Flux, phase, cover, and status inputs. Separate tests must show the expected temporary divergence when authority is stale, including morph affordability. The client still does not predict Flux gains, damage, deaths, pickups, scores or other server-owned outcomes (D-036).
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-020 option A).
+- **Task:** T-040.
+
+### D-069 Projectile shot index per input sequence
+
+- **Decision:** For each applied input sequence, allocate `shotIdx` in firing order starting at zero. Repeating the same held input frame across simulation ticks continues its index; the first shot tagged with a different accepted input sequence starts again at zero. Scatter pellets consume consecutive indexes in their fixed pattern order. This approves the existing T-016 server behavior and the T-040 predictor behavior, resolving D-061's historical OQ-015 caveat. The `(inputSeq, shotIdx)` event wire format is unchanged.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-015 option A).
+- **Task:** T-040 and T-037.
+
+### D-071 Complete local prediction restoration
+
+- **Decision:** Use OQ-021 option A. Version the protocol and mirror the local player's three weapon fire timers, last button sequence and held mask, last shot sequence and next shot index. Mirror `ccImmuneEndTick` as well because the shared `LocalPredictState` requires it for a complete authoritative restore. Reject an incomplete prediction projection rather than retaining stale predicted fields. The client continues to predict only the D-036 permitted subset.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-021 option A).
+- **Task:** T-035.

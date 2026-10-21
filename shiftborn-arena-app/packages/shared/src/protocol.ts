@@ -1,8 +1,8 @@
 import { AimSource } from './constants.js';
 import type { AbilityId, Cause, Form, Phase, WeaponId } from './constants.js';
 
-// NETWORK_PROTOCOL §2: initial wire version.
-export const PROTOCOL_VERSION = 1;
+// D-071: full local prediction restoration extends the PlayerState wire.
+export const PROTOCOL_VERSION = 2;
 
 export const ClientMessageId = {
   Input: 1,

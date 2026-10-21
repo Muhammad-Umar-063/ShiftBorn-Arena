@@ -111,6 +111,14 @@ describe('T-021 NETWORK_PROTOCOL §4.2 mirror', () => {
     player.stats.damageDealtByForm[Form.Beast] = 4;
     player.stats.damageDealtByForm[Form.Turret] = 5;
     player.lastInputSeq = -1;
+    player.lastButtonInputSeq = 12;
+    player.lastHeldButtons = 5;
+    player.lastShotInputSeq = 11;
+    player.nextShotIdx = 3;
+    player.weapon[Form.Runner].nextShotIn = 0.1;
+    player.weapon[Form.Beast].nextShotIn = 0.2;
+    player.weapon[Form.Turret].nextShotIn = 0.3;
+    player.ccImmuneEndTick = 72;
     mirrorWorld(world, state, {
       connectedIds: new Set(['p']),
       hostId: 'p',
@@ -133,7 +141,15 @@ describe('T-021 NETWORK_PROTOCOL §4.2 mirror', () => {
       abilityStartTick: 12,
       damageDealt: 12,
       lastInputSeq: 0,
+      lastButtonInputSeq: 12,
+      lastHeldButtons: 5,
+      lastShotInputSeq: 11,
+      nextShotIdx: 3,
+      ccImmuneEndTick: 72,
     });
+    expect(record?.weaponRunnerNextShotIn).toBeCloseTo(0.1);
+    expect(record?.weaponBeastNextShotIn).toBeCloseTo(0.2);
+    expect(record?.weaponTurretNextShotIn).toBeCloseTo(0.3);
     expect(state.hostId).toBe('p');
     expect(state.settings.botFill).toBe(true);
     expect(state.settings.nextMode).toBe(1);

@@ -72,6 +72,21 @@ export function scatterAngles(aim: number): number[] {
   );
 }
 
+/** D-069: one firing-order index stream for each applied input sequence. */
+export function advanceShotSequence(
+  history: Pick<PlayerRecord, 'lastShotInputSeq' | 'nextShotIdx'>,
+  inputSeq: number,
+  form: Form,
+): { firstShotIdx: number; nextShotIdx: number } {
+  const firstShotIdx = history.lastShotInputSeq === inputSeq
+    ? history.nextShotIdx
+    : 0;
+  const count = form === Form.Beast
+    ? DERIVED.weapons.scatterCannon.pelletOffsetsRad.length
+    : 1;
+  return { firstShotIdx, nextShotIdx: firstShotIdx + count };
+}
+
 export function scatterDistanceMul(traveledM: number): number {
   const values = BALANCE.weapons.scatterCannon;
   if (traveledM <= values.fullDamageRangeM) return 1;
@@ -116,4 +131,45 @@ export function advanceTurretHeat(
     overheatEndTick: tick + DERIVED.weapons.railRepeater.overheatTicks + 1,
     overheated: true,
   };
+}
+
+/** GR-7.2/7.14: apply heat before firing eligibility on this tick. */
+export function advanceWeaponState(
+  player: Pick<
+    PlayerRecord,
+    | 'alive'
+    | 'morph'
+    | 'stunEndTick'
+    | 'form'
+    | 'overheatEndTick'
+    | 'heat'
+    | 'weapon'
+    | 'ability'
+  >,
+  phase: Phase,
+  tick: number,
+  held: boolean,
+): { fired: boolean; overheated: boolean } {
+  const permitted = canFireWeapon(
+    player,
+    phase,
+    tick,
+    player.ability?.id ?? null,
+  );
+  const heat = advanceTurretHeat(
+    player.heat,
+    player.overheatEndTick,
+    tick,
+    player.form === Form.Turret && held && permitted,
+  );
+  player.heat = heat.heat;
+  player.overheatEndTick = heat.overheatEndTick;
+  const timers = advanceWeaponTimers(
+    player.weapon,
+    player.form,
+    held,
+    permitted && !heat.overheated,
+  );
+  player.weapon = timers.timers;
+  return { fired: timers.fired, overheated: heat.overheated };
 }

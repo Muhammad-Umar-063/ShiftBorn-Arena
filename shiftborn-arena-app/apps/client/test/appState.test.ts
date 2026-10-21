@@ -22,6 +22,28 @@ function harness() {
 afterEach(() => vi.useRealTimers());
 
 describe('AppStateController', () => {
+  it('shows recovery and connection lost without restarting the join timeout', () => {
+    vi.useFakeTimers();
+    const { attempts, controller } = harness();
+    controller.start(quick);
+    attempts[0]?.attempt.joined();
+    controller.showReconnecting();
+    expect(controller.state).toEqual({ kind: 'reconnecting', intent: quick });
+    vi.advanceTimersByTime(CONNECTION_TIMEOUT_MS);
+    expect(controller.state.kind).toBe('reconnecting');
+    controller.recovered();
+    expect(controller.state.kind).toBe('inMatch');
+    controller.showReconnecting();
+    controller.connectionLost();
+    expect(controller.state).toEqual({ kind: 'error', reason: 'lost', intent: quick });
+    if (controller.state.kind === 'error')
+      expect(errorPresentation(controller.state)).toMatchObject({
+        message: 'Connection lost', label: 'Play again',
+      });
+    expect(attempts[0]?.attempt.signal.aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
   it('transitions through landing, connecting, inMatch, error and home', () => {
     vi.useFakeTimers();
     const { attempts, states, controller } = harness();

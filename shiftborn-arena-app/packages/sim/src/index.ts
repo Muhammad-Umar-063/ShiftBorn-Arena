@@ -18,6 +18,12 @@ export { SIM_EVENT_NAMES, emitEvent } from './events.js';
 export type { SimEvent, SimEventName } from './events.js';
 export { step, TICK_SYSTEMS } from './step.js';
 export type { StepContext } from './step.js';
+export { localPredictStateFromPlayer, predictStep } from './predict.js';
+export type {
+  LocalPredictState,
+  PredictStepContext,
+  PredictedShot,
+} from './predict.js';
 export { hashWorld } from './hash.js';
 export {
   administrativelyEliminate,

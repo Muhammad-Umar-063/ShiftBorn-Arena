@@ -59,7 +59,7 @@ Every feature below is specified in the listed document. If a feature is not on 
 | A4 | Client prediction of own player, reconciliation, interpolation of others | `docs/NETWORK_PROTOCOL.md` §6 to §8 |
 | A5 | Connection lifecycle: join, quick play, reconnect within 30 s, hidden tab handover, AFK | `docs/NETWORK_PROTOCOL.md` §9 |
 | A6 | Greybox map `greybox_v1` (walls, 10 destructible cover pieces, 10 spawn points, 10 shard points, 5 zone points) | `docs/MAP_SPEC.md` |
-| A7 | Fixed top-down camera with readability rules | `docs/CONTROLS_UI.md` §7 |
+| A7 | Two local camera views, TPP by default and FPP at eye height, with readability rules | `docs/CONTROLS_UI.md` §7 |
 | A8 | Movement, wall collision and sliding, no player body collision | `docs/GAME_RULES.md` §4 |
 | A9 | Three forms (Runner, Beast, Turret) with stats, hitboxes and the Turret turn cap | `docs/GAME_RULES.md` §4 |
 | A10 | Morphing with Flux cost, 0.5 s morph, 3 s cooldown, old-form-during-morph rule | `docs/GAME_RULES.md` §5 |

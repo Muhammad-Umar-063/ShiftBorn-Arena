@@ -219,7 +219,7 @@ step(world, inputs: InputFrame[] /* by seat */, ctx: StepContext): SimEvent[]
 snapshot(world): WorldSnapshot             // plain object for mirroring and logging
 hashWorld(world): string                   // stable hash of all gameplay-relevant fields
 lineOfSight(world, a: Vec2, b: Vec2): boolean
-predictStep(local: LocalPredictState, input: InputFrame, map: MapRuntime, tick: number): LocalPredictState
+predictStep(local: LocalPredictState, input: InputFrame, map: MapRuntime, context: PredictStepContext): LocalPredictState
 ```
 
 `StepContext` carries server-only data: per-player spawn advance ticks (GR-7.9). On the client it is empty.
@@ -239,6 +239,12 @@ The static map (walls) is indexed in a uniform grid of 4 m cells listing the box
 - aim (including the Turret turn cap), movement and wall collision, Dash movement, Ram Charge windup and charge movement (stops at walls and cover; player contact is left to the server), morph timing (start if the last known Flux allows it, end after 15 ticks), ability cooldown timers, fire timers and heat (to spawn local shot visuals).
 
 It does **not** decide damage, deaths, Flux gains, shard pickups or Ram contacts. Those come from the server and are applied when the authoritative state arrives (`docs/NETWORK_PROTOCOL.md` §6).
+
+The T-040 shared step takes the **pre-step simulation tick** in `context.tick`, the phase after the server's phase transition, and the current dynamic `cover` flags aligned with `MapRuntime.cover`. `InputFrame.seq` is a packet sequence and is never used as a simulation tick. For a two-frame server catch-up, `context.pressedButtons` carries the merged rising edges. The caller advances its own tick and adopts phase, cover, and other authoritative changes; `predictStep` does not advance the world.
+
+`LocalPredictState` owns position, velocity, aim, form, morph and ability state, per-form cooldowns and weapon timers, heat and overheat, authoritative status and protection timers, held-button/sequence history, and current-step shot candidates. It stores `authoritativeFlux` and `provisionalMorphCost` separately. Morph affordability uses their difference; the predictor never generates Flux. The `shotsThisTick` tags use D-069's per-sequence allocation. The step does not spawn projectiles or apply damage, deaths, respawns, pickups, or scores. Ram Charge and Rail Shot transitions remain for T-041/T-042.
+
+Under D-068, equivalence is conditional on both sides receiving the same authoritative Flux, phase, cover, and status inputs before the tick. The 1,000 seeded T-040 sequences compare every predictable local field after every full server step, with Flux fed explicitly before each tick; an additional test shows a stale Flux value can correctly produce a temporary morph-affordability difference. Literal equality of all `PlayerRecord` fields would require client Flux regeneration and other authoritative outcomes, contrary to D-036. T-040 owns this shared step and tests; T-035 owns browser reconciliation and presentation (D-067). D-071 adds the missing restoration fields to the version 2 Schema; the client validates them before replay.
 
 ### 4.7 Mode rules
 
@@ -339,12 +345,14 @@ Client build variables (Vite, `apps/client/.env`):
 - Predict the local player; reconcile with server state; smooth errors.
 - Interpolate remote players 100 ms behind.
 - Show local shots instantly; match them to server projectile events.
-- Render the greybox world with a fixed top-down camera.
+- Render the greybox world with local TPP and FPP camera views; TPP is the default.
 - Play synthesized sounds.
 - Send client stats every 30 s.
 - Never decide outcomes (D-036).
 
 ### 6.2 Frame loop
+
+A newly pressed gameplay key may sample the next input slot before the next render frame (AT-NET-06). The renderer consumes that slot at its scheduled 30 Hz boundary, so the input manager still owns one sequence and one send per slot. Replay never sends packets.
 
 ```text
 requestAnimationFrame:
@@ -353,18 +361,21 @@ requestAnimationFrame:
      connection.sendInput(frame)            // with the last 3 frames
      predictor.step(frame)                  // local player
      localShots.step(frame)
-  interpolator.update(renderTime = serverTimeEstimate - 100 ms)
+  renderTick = connection.clock.estimatedTick() - 100 ms
+  remotes = remoteTimeline.sample(renderTick)  // stable IDs, one-second history
+  worldEvents.deliverDue(renderTick)            // validated, queued events
   predictor.applyErrorSmoothing(frameDt)
-  renderer.render(alpha)                    // alpha = fraction to the next local tick
+  renderer.render(remotes, predictedLocal)  // presentation-only catch-up cap
   hud.update()
 ```
 
 ### 6.3 Rendering
 
 - Three.js with one `WebGLRenderer`, antialiasing on desktop, pixel ratio capped at 2.
-- Camera: perspective, about 50° pitch, fixed north-up, never rotates. The default view is about 36 m wide at 16:9. The camera leads up to 6 m toward the aim direction and zooms by form (`forms.<form>.cameraZoom`). Details in `docs/CONTROLS_UI.md` §7.
+- Camera: one perspective camera with TPP behind the player and FPP at eye height, both oriented by aim. TPP is the default and avoids walls/cover. V or the match button switches views; the saved setting supplies the initial view. Form zoom and TPP aim lead are described in `docs/CONTROLS_UI.md` §7.
 - Greybox look: walls light grey boxes 3 m tall; cover darker boxes 1.2 m tall with a crack decal pattern; floor with a 1 m grid and lane tints; players as form silhouettes (`docs/CONTROLS_UI.md` §8).
-- Walls between the camera and a player fade to 30% opacity.
+- In TPP, walls between the camera and a player fade to 30% opacity. FPP keeps them opaque.
+- T-036 samples remote players, cover and state-driven effects on one delayed render tick. The local predicted pose and immediate local feedback remain separate. Connection owns clock correction; the renderer only reads its estimate.
 - Instanced meshes for shards and projectiles.
 - Budgets: under 100 draw calls, under 100,000 triangles.
 

@@ -68,4 +68,19 @@ describe('T-022 StepContext merged input edges', () => {
     expect(events.some((event) => event.type === 'abilityStart')).toBe(true);
     expect(record.lastHeldButtons).toBe(0);
   });
+
+  it('AT-MORPH-13 D-064 rejects distinct target edges merged into one server tick', () => {
+    const world = makeTestWorld({ seed: 73, players: [player] });
+    world.phase = Phase.Playing;
+    const record = world.players[0];
+    if (record === null || record === undefined) throw new Error('missing player');
+    record.alive = true;
+    const events = step(world, [frame(2, InputButton.MorphTurret)], {
+      inputPressedButtonsBySeat: [InputButton.MorphBeast | InputButton.MorphTurret],
+    });
+    expect(events.filter((event) => event.type.startsWith('morph'))).toEqual([]);
+    expect(record.morph).toBeNull();
+    expect(record.lastHeldButtons).toBe(InputButton.MorphTurret);
+    expect(record.lastButtonInputSeq).toBe(2);
+  });
 });

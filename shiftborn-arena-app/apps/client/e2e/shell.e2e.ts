@@ -2,6 +2,9 @@ import { expect, test, type Page } from '@playwright/test';
 
 async function withWebGL2(page: Page): Promise<void> {
   await page.addInitScript(() => {
+    const fetchNow = window.fetch.bind(window);
+    window.fetch = (input, init) => String(input).includes('/matchmake/')
+      ? new Promise<Response>(() => undefined) : fetchNow(input, init);
     Object.defineProperty(HTMLCanvasElement.prototype, 'getContext', {
       configurable: true,
       value: (kind: string) => kind === 'webgl2' ? {} : null,
@@ -101,6 +104,7 @@ test.describe('AT-UI-10: settings persistence and blocked storage', () => {
     await volume.fill('42');
     await expect(page.getByText('42%')).toBeVisible();
     await page.getByRole('checkbox', { name: 'Reduced motion' }).check();
+    await page.getByRole('radio', { name: 'FPP' }).check();
     await page.keyboard.press('Escape');
     await expect(page.getByRole('button', { name: 'Settings' })).toBeFocused();
     await page.reload();
@@ -108,6 +112,7 @@ test.describe('AT-UI-10: settings persistence and blocked storage', () => {
     await page.getByRole('button', { name: 'Settings' }).click();
     await expect(volume).toHaveValue('42');
     await expect(page.getByRole('checkbox', { name: 'Reduced motion' })).toBeChecked();
+    await expect(page.getByRole('radio', { name: 'FPP' })).toBeChecked();
   });
 
   test('blocked localStorage leaves defaults and settings usable', async ({ page }) => {

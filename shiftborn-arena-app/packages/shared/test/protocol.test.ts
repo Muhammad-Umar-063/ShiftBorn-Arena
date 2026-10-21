@@ -228,7 +228,7 @@ describe('AT-NET-01 input encoding', () => {
 
 describe('AT-NET-01 protocol constants and event tuples', () => {
   it('uses the exact initial version and message IDs', () => {
-    expect(PROTOCOL_VERSION).toBe(1);
+    expect(PROTOCOL_VERSION).toBe(2);
     expect(Object.values(ClientMessageId)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(Object.values(ServerMessageId)).toEqual([
       100, 101, 102, 103, 104, 105, 106, 107,

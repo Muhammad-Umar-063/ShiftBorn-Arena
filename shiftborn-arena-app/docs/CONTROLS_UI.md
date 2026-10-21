@@ -28,12 +28,13 @@ Design rule from the GDD (Pillar 7): every threat, form and objective must be id
 | Action | Binding |
 |---|---|
 | Move | W A S D |
-| Aim | Mouse cursor |
+| Aim | Mouse cursor in TPP; disabled in FPP until OQ-018 |
 | Fire | Left mouse button (hold); Space also fires |
 | Morph to Runner / Beast / Turret | 1 / 2 / 3 |
 | Ability (Dash, Ram Charge, Rail Shot) | E |
 | Scoreboard | Tab (hold) |
 | Menu (the match keeps running) | Esc or P |
+| Switch camera view | V (TPP/FPP) |
 | Debug overlay / hitbox view (dev builds) | F3 / F4 |
 | Dev console (only if the server allows cheats) | Backtick |
 | Reserved, do nothing yet | Right mouse (crate weapon), R (crate weapon), X (Ultimate), F (interact), Z (ping), B (emote) |
@@ -50,6 +51,7 @@ Design rule from the GDD (Pillar 7): every threat, form and objective must be id
 | Lock target | Q (tap to lock or cycle; hold 0.5 s to release) |
 | Scoreboard | Tab (hold) |
 | Menu | Esc or P |
+| Switch camera view | V (TPP/FPP) |
 | Menus | Arrow keys or W A S D to move focus, Enter or Space to confirm, Esc to go back |
 
 Both schemes work at the same time; nothing needs to be switched in settings.
@@ -72,7 +74,7 @@ Both schemes work at the same time; nothing needs to be switched in settings.
 - Esc may only exit fullscreen in some browsers, so P is a second menu key.
 - Never use Ctrl or Cmd shortcuts.
 - On window blur or `visibilitychange`, release every held key and mouse button, so a player does not keep moving or firing.
-- Hide the system cursor over the canvas and draw the game reticle instead. Do not use pointer lock.
+- In TPP, hide the system cursor over the canvas and draw the game reticle instead. In FPP, mouse aim is disabled pending the detailed control rule in OQ-018 (D-065), so show the system cursor and hide the aiming reticle. Do not use pointer lock.
 
 ### 2.6 Input mapper
 
@@ -89,6 +91,7 @@ Both schemes work at the same time; nothing needs to be switched in settings.
 - Cast a ray from the camera through the cursor onto the ground plane. Aim angle = direction from the local player's displayed position to that point.
 - If the point is within 0.75 m of the player, keep the previous aim (avoids spinning).
 - The reticle is drawn at the cursor. Its color shows weapon state: normal, cooling down, overheated (Turret), or out of range (dimmed when the cursor is beyond the current weapon's range).
+- The ground-ray cursor rule describes TPP. FPP looks along the player's last aim from eye height. Mouse movement does not change aim in FPP until a detailed rule is approved (D-065, OQ-018); V switches back to TPP for mouse aiming. This interim view is not complete FPP playability.
 
 ### 3.2 Keyboard aim (arrow keys)
 
@@ -231,6 +234,7 @@ Saved in `localStorage` with every read and write wrapped in try/catch; the game
 | Aim assist strength (keyboard lock) | 0 to 100% | 100% |
 | Keyboard lock-on | On, Off | On |
 | Fire mode | Hold, Toggle | Hold |
+| Camera view | TPP, FPP | TPP |
 | Master volume | 0 to 100 | 80 |
 | Effects volume | 0 to 100 | 100 |
 | Interface volume | 0 to 100 | 80 |
@@ -261,12 +265,13 @@ For late joiners in a code room with 60 s or less left: "Match in progress. You 
 
 ## 7. Camera
 
-- Perspective camera, pitch about 50° below horizontal, fixed north-up, never rotates.
-- Vertical field of view 35°. The camera height is set so the visible north-south extent at the player's position is 20.25 m × the form's `cameraZoom` (1.0 Runner, 0.9 Beast, 1.3 Turret). Wider windows see more east-west. At 16:9 this gives about 36 m of width for a Runner.
-- **Lead:** the camera target is the local player's displayed position plus a lead toward the aim: `aimDir × 6 m × k`, where `k = clamp(cursorDistance / 12 m, 0, 1)` for mouse aim and `k = 0.6` for keyboard aim. Smoothed with a critically damped spring (time constant 0.15 s); instant with reduced motion.
-- Zoom changes over 0.3 s when the form changes.
-- **Fairness check:** each form's weapon range fits inside the visible area in the aim direction at 16:9 (Runner 14 m, Beast 9 m, Turret 18 m). An enemy shooting you is either on screen or shown by a threat arrow.
-- **Occlusion:** walls and cover whose north face is within 2.5 m south of any visible player, or that cross the line from the camera to the local player, fade to 30% opacity. Players behind cover also draw a solid silhouette.
+- Two local presentation views: **TPP** follows behind and above the player in the aim direction; **FPP** is at the player's eye height and looks along the aim. TPP is the saved default. V or the in-match View button switches between them. The server's movement, aim and hit rules do not change.
+- Until T-033 supplies form silhouettes, TPP shows a neutral local greybox body. FPP hides the local body to keep the eye view clear.
+- TPP has a 55° vertical field of view. The camera follows 4 m behind and 2.8 m above the player at Runner zoom, looks toward a point ahead, and moves toward the player if a wall or intact cover would contain it. Aim lead shifts the look target by up to one third of the smoothed lead. FPP sits 1.6 m above the player's ground point with a 65° vertical field of view at Runner zoom and a horizontal look direction.
+- Form zoom uses `forms.<form>.cameraZoom` (1.0 Runner, 0.9 Beast, 1.3 Turret). TPP scales follow distance and height. FPP divides its field of view by zoom. Form zoom changes over 0.3 s. Switching TPP/FPP is immediate.
+- TPP aim lead uses `aimDir × 6 m × k`, where `k = clamp(cursorDistance / 12 m, 0, 1)` for mouse aim and `k = 0.6` for keyboard aim. It is smoothed with a critically damped spring (time constant 0.15 s), or updates instantly with reduced motion. FPP stays at the eye and does not shift its origin for aim lead.
+- **Fairness check (pending live aim and threat-arrow work):** measure whether each form's weapon range fits in the aim direction at 16:9 (Runner 14 m, Beast 9 m, Turret 18 m). Threat arrows are required for off-screen attackers.
+- **Occlusion:** in TPP, walls and cover whose north face is within 2.5 m south of any visible player, or that cross the line from the camera to the local player, fade to 30% opacity. In FPP they remain opaque. Players behind cover also draw a solid silhouette in later entity work.
 - Mild screen shake on the local player's own KO, on being hit by Ram Charge, and on Rail Shot release (off when screen shake is off).
 
 ---

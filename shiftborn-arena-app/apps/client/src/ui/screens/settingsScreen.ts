@@ -66,7 +66,7 @@ export function settingsScreen(
     form.append(row);
   }
 
-  const fire = element('fieldset', 'setting-row fire-mode');
+  const fire = element('fieldset', 'setting-row setting-choice');
   fire.append(element('legend', 'field-label', 'Fire mode'));
   for (const value of ['hold', 'toggle'] as const) {
     const label = element('label', 'radio-label', value === 'hold' ? 'Hold' : 'Toggle');
@@ -82,6 +82,22 @@ export function settingsScreen(
     fire.append(label);
   }
   form.append(fire);
+  const camera = element('fieldset', 'setting-row setting-choice');
+  camera.append(element('legend', 'field-label', 'Camera view'));
+  for (const value of ['tpp', 'fpp'] as const) {
+    const label = element('label', 'radio-label', value.toUpperCase());
+    const input = element('input');
+    input.type = 'radio';
+    input.name = 'cameraView';
+    input.value = value;
+    input.checked = snapshot.preferences.cameraView === value;
+    input.addEventListener('change', () => {
+      if (input.checked) actions.update('cameraView', value);
+    });
+    label.prepend(input);
+    camera.append(label);
+  }
+  form.append(camera);
   const primary = action('Back', 'button button-secondary');
   primary.addEventListener('click', actions.back);
   frame.append(form, primary);

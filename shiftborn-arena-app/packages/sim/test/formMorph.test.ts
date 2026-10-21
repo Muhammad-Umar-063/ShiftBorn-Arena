@@ -591,21 +591,75 @@ describe('GR-5 morphing', () => {
     expect(player.morph).toBeNull();
   });
 
-  it('OQ-014 isolates simultaneous targets without choosing a form', () => {
+  it.each([
+    ['Runner + Beast', InputButton.MorphRunner | InputButton.MorphBeast],
+    ['Runner + Turret', InputButton.MorphRunner | InputButton.MorphTurret],
+    ['Beast + Turret', InputButton.MorphBeast | InputButton.MorphTurret],
+    ['all three', InputButton.MorphRunner | InputButton.MorphBeast |
+      InputButton.MorphTurret],
+  ])('AT-MORPH-13 D-064 rejects %s rising edges while keeping other input', (_name, targets) => {
     const { world, player } = playingWorld();
     const flux = player.flux;
-    expect(
-      step(
-        world,
-        [input(InputButton.MorphBeast | InputButton.MorphTurret, 1)],
-        {},
-      ),
-    ).toEqual([]);
+    const buttons = targets | InputButton.Fire;
+    const events = [...step(world, [{ ...input(buttons, 1, 127), aim: 16384 }], {})];
+    expect(events.filter((event) => event.type.startsWith('morph'))).toEqual([]);
     expect(player.morph).toBeNull();
     expect(player.flux).toBeCloseTo(flux + DERIVED.flux.regenPerTick, 12);
-    step(world, [input(0, 2)], {});
-    expect(step(world, [input(InputButton.MorphBeast, 3)], {})[0]?.type).toBe(
-      'morphStart',
-    );
+    expect(player.pos.x).toBeGreaterThan(0);
+    expect(player.aim).toBeCloseTo(Math.PI / 2);
+    expect(events.some((event) => event.type === 'projectileSpawn')).toBe(true);
+    expect(player.lastHeldButtons).toBe(buttons);
+    expect(player.lastButtonInputSeq).toBe(1);
+    expect(player.lastInputSeq).toBe(1);
+  });
+
+  it('AT-MORPH-13 D-064 permits one new target beside an already-held target', () => {
+    const { world, player } = playingWorld();
+    step(world, [input(InputButton.MorphRunner, 1)], {});
+    const events = [...step(world, [input(InputButton.MorphRunner |
+      InputButton.MorphBeast, 2)], {})];
+    expect(events.filter((event) => event.type === 'morphStart')).toHaveLength(1);
+    expect(player.morph?.target).toBe(Form.Beast);
+    expect(player.lastHeldButtons).toBe(InputButton.MorphRunner | InputButton.MorphBeast);
+  });
+
+  it('AT-MORPH-13 D-064 recovers after release and repress', () => {
+    const { world, player } = playingWorld();
+    const both = InputButton.MorphBeast | InputButton.MorphTurret;
+    expect(step(world, [input(both, 1)], {})).toEqual([]);
+    expect(step(world, [input(both, 2)], {})).toEqual([]);
+    expect(player.lastHeldButtons).toBe(both);
+    step(world, [input(0, 3)], {});
+    expect(player.lastHeldButtons).toBe(0);
+    const events = [...step(world, [input(InputButton.MorphBeast, 4)], {})];
+    expect(events.filter((event) => event.type === 'morphStart')).toHaveLength(1);
+    expect(player.morph?.target).toBe(Form.Beast);
+  });
+
+  it('AT-MORPH-13 D-064 preserves an active morph, weapon timers, and Flux regeneration', () => {
+    const { world, player } = playingWorld();
+    const morph = { target: Form.Beast, endTick: world.tick + 5 };
+    player.morph = morph;
+    player.weapon[Form.Runner].nextShotIn = DERIVED.weapons.pulsePistol.intervalS;
+    const timerBefore = player.weapon[Form.Runner].nextShotIn;
+    const fluxBefore = player.flux;
+    const tickBefore = world.tick;
+    const events = [...step(world, [input(InputButton.MorphRunner |
+      InputButton.MorphTurret, 1)], {})];
+    expect(events.filter((event) => event.type.startsWith('morph'))).toEqual([]);
+    expect(player.morph).toEqual(morph);
+    expect(player.weapon[Form.Runner].nextShotIn).toBeLessThan(timerBefore);
+    expect(player.flux).toBeCloseTo(fluxBefore + DERIVED.flux.regenPerTick, 12);
+    expect(world.tick).toBe(tickBefore + 1);
+  });
+
+  it('AT-MORPH-13 D-064 leaves an ability edge available on an ambiguous morph press', () => {
+    const { world, player } = playingWorld();
+    const events = [...step(world, [input(InputButton.MorphBeast |
+      InputButton.MorphTurret | InputButton.Ability, 1)], {})];
+    expect(events.filter((event) => event.type.startsWith('morph'))).toEqual([]);
+    expect(events.some((event) => event.type === 'abilityStart')).toBe(true);
+    expect(player.morph).toBeNull();
+    expect(player.ability).not.toBeNull();
   });
 });

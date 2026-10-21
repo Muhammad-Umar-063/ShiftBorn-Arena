@@ -174,25 +174,14 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 - Status: Open
 - Answer:
 
-### OQ-014 Simultaneous morph targets
-- Asked: 2026-10-20 by Codex, while working on T-014
-- Question: What should happen when two or three morph target buttons acquire a rising edge on the same tick?
-- Context: GR-5.1 defines one target request, but gives no priority for simultaneous targets. T-014 isolates this case by selecting no target and emitting no morph event until a decision is approved.
-- Options: A) Fixed form priority. B) Reject the ambiguous press. C) Use input bit order.
-- Recommendation: B, because it does not select a form the player may not have intended.
-- Blocks: T-014 simultaneous-target behavior only; normal single-target morphing proceeds.
-- Needed by: Before final input handling is shipped
-- Status: Open
-- Answer:
-
-### OQ-015 Projectile shot index across repeated inputs
-- Asked: 2026-10-20 by Codex, while working on T-016
-- Question: How should `shotIdx` be allocated when one held input frame is reused across ticks, and when should its counter reset?
-- Context: D-034 and NETWORK_PROTOCOL §5.3/§6.1 require `(inputSeq, shotIdx)` to match predicted and authoritative spawns. §5.4 repeats the last frame when the buffer is empty, but does not specify the shot-index counter. T-016 currently assigns indexes in firing order for a sequence and resets to zero on a new accepted sequence; Scatter pellets consume consecutive indexes.
-- Options: A) Per-sequence increasing index (current). B) A lifetime increasing index. C) Another protocol-defined allocation rule.
-- Recommendation: A, with a predictor equivalence test in T-040 before client reconciliation ships.
-- Blocks: Final client/server reconciliation semantics in T-037 and T-040; server-only T-016 behavior proceeds deterministically.
-- Needed by: T-037
+### OQ-018 Detailed FPP mouse-turn control
+- Asked: 2026-10-21 by Codex, following D-065
+- Question: What detailed mouse control rule should turn horizontal aim in FPP without pointer lock?
+- Context: D-065 approves disabled FPP mouse aim for the current build. The camera and V switch remain, but mouse movement cannot turn the player in FPP. A future implementation needs an explicit browser-safe control rule and its acceptance tests.
+- Options: A) Visible on-canvas cursor turning. B) Mouse deltas while over the canvas. C) Another fully specified rule.
+- Recommendation: None until the control behavior is specified and approved.
+- Blocks: Complete FPP mouse playability only; not T-034 or T-031.
+- Needed by: Before FPP mouse aim is enabled
 - Status: Open
 - Answer:
 
@@ -200,4 +189,79 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 
 ## Answered
 
-(None yet. Answered questions move here with a link to their decision.)
+### OQ-021 Complete network restoration for prediction
+- Asked: 2026-10-21 by Codex, during T-040
+- Question: How should T-035 restore per-form weapon timers, input held/edge history and shot-index bookkeeping from a real authoritative patch?
+- Context: The prior `PlayerState` Schema omitted `weapon[*].nextShotIn`, `lastButtonInputSeq`, `lastHeldButtons`, `lastShotInputSeq` and `nextShotIdx`. A complete in-memory `PlayerRecord` test did not establish live patch restoration. D-069 governs shot-index meaning.
+- Options: A) Add these authoritative fields to a versioned protocol. B) Approve a deterministic reconstruction method and define its resync cases.
+- Recommendation: A for weapon timers and edge history; include D-069 bookkeeping or approve an exact reconstruction method.
+- Blocks: Resolved for T-035.
+- Needed by: T-035.
+- Status: Answered → D-071
+- Answer: Option A approved on 2026-10-21. Add the required authoritative restoration fields to protocol version 2. See [D-071](DECISIONS.md#d-071-complete-local-prediction-restoration).
+
+### OQ-015 Projectile shot index across repeated inputs
+- Asked: 2026-10-20 by Codex, while working on T-016
+- Question: How should `shotIdx` be allocated when one held input frame is reused across ticks, and when should its counter reset?
+- Context: D-034 and NETWORK_PROTOCOL §5.3/§6.1 require `(inputSeq, shotIdx)` to match predicted and authoritative spawns. T-016 allocated indexes in firing order per sequence; Scatter pellets consumed consecutive indexes.
+- Options: A) Per-sequence increasing index (current). B) A lifetime increasing index. C) Another protocol-defined allocation rule.
+- Recommendation: A.
+- Blocks: Resolved for T-040 and T-037.
+- Needed by: T-037
+- Status: Answered → D-069
+- Answer: Option A approved on 2026-10-21. The same held sequence keeps increasing its index; a different accepted sequence starts at zero on its first shot. See [D-069](DECISIONS.md#d-069-projectile-shot-index-per-input-sequence).
+
+### OQ-019 T-040 versus T-035 reconciliation ownership
+- Asked: 2026-10-21 by Codex, during T-040
+- Question: Does T-040 own only the shared `predictStep` state contract and equivalence tests, with browser reconciliation in T-035, or must T-040 also implement reconciliation as D-061 states?
+- Context: D-061 assigned reconciliation to T-040 while `TASKS.md` assigned it to T-035.
+- Options: A) T-040 shared sim and T-035 browser reconciliation. B) Keep D-061's T-040 ownership.
+- Recommendation: A.
+- Blocks: Resolved for T-040 and T-035 ownership.
+- Needed by: T-040 signoff.
+- Status: Answered → D-067
+- Answer: Option A approved on 2026-10-21. D-067 supersedes only D-061's task assignment. See [D-067](DECISIONS.md#d-067-t-040-and-t-035-ownership).
+
+### OQ-020 Prediction equivalence boundary
+- Asked: 2026-10-21 by Codex, during T-040
+- Question: May T-040 compare every predictable local field exactly with the same authoritative Flux, phase, cover and status inputs, and separately test stale-authority divergence?
+- Context: Full `PlayerRecord` equality would require predicting server-owned outcomes contrary to D-036.
+- Options: A) Conditional exact equality of predictable fields plus authority-boundary tests. B) Another testable criterion consistent with D-036.
+- Recommendation: A.
+- Blocks: Resolved for T-040 acceptance.
+- Needed by: T-040 signoff.
+- Status: Answered → D-068
+- Answer: Option A approved on 2026-10-21. See [D-068](DECISIONS.md#d-068-t-040-prediction-equivalence-boundary).
+
+### OQ-014 Simultaneous morph targets
+- Asked: 2026-10-20 by Codex, while working on T-014
+- Question: What should happen when two or three morph target buttons acquire a rising edge on the same tick?
+- Context: GR-5.1 defines one target request, but gives no priority for simultaneous targets. T-014 isolates this case by selecting no target and emitting no morph event until a decision is approved.
+- Options: A) Fixed form priority. B) Reject the ambiguous press. C) Use input bit order.
+- Recommendation: B, because it does not select a form the player may not have intended.
+- Blocks: Resolved for T-014 and T-034.
+- Needed by: Before final input handling is shipped
+- Status: Answered → D-064
+- Answer: Option B approved on 2026-10-21. Distinct morph-target rising edges on one simulation tick are ignored; other input and timers continue. See [D-064](DECISIONS.md#d-064-ambiguous-morph-input-edges).
+
+### OQ-016 T-031 netsim acceptance timing
+- Asked: 2026-10-21 by Codex, while working on T-031
+- Question: May T-031 be signed off after its production socket, clock, and Schema netsim checks pass, with the full playable portion of AT-NET-17 verified after rendering and input are implemented?
+- Context: `TASKS.md` says T-031 is done when AT-NET-17 passes. `docs/ACCEPTANCE_TESTS.md` defines that manual test as the game staying playable at `?lag=150&loss=2` with no decode errors. The client currently has a connected shell and live tick readout, while rendering and gameplay input belong to T-032 and T-034. T-031 tests verify live Schema patches through seeded 2% holds, true server-tick clock accuracy, and a browser session without console errors, but cannot verify playability yet.
+- Options: A) Accept T-031's network-layer evidence now and assign the full playable check to the first task with rendering and input. B) Keep T-031 blocked until the complete AT-NET-17 manual test can run.
+- Recommendation: A, because it preserves the documented scope and task order while keeping the full manual requirement visible.
+- Blocks: Resolved for staged T-031 signoff; full AT-NET-17 remains mandatory in T-068.
+- Needed by: T-031
+- Status: Answered → D-066
+- Answer: Option A approved on 2026-10-21. T-031 may finish on verified production networking and AT-NET-19; attempt full AT-NET-17 after T-034 and complete remaining verification in T-068. See [D-066](DECISIONS.md#d-066-staged-t-031-acceptance).
+
+### OQ-017 FPP mouse aim without pointer lock
+- Asked: 2026-10-21 by Codex, while working on T-034
+- Question: How should mouse movement change the player's horizontal aim in FPP when pointer lock is disallowed?
+- Context: `docs/CONTROLS_UI.md` §3.1 specifies a cursor-to-ground ray for TPP. FPP looks horizontally from eye height, so the TPP ground intersection cannot supply a useful aim direction. §2.5 forbids pointer lock. The FPP camera and V switch remain available. The user chose option C for the current build; a detailed rule is still needed before enabling FPP mouse turning.
+- Options: A) Use a visible on-canvas cursor position to set a turning direction. B) Use mouse movement deltas while the cursor is over the canvas. C) Keep FPP mouse aim disabled until a detailed rule is approved.
+- Recommendation: None pending a detailed FPP control rule.
+- Blocks: T-034 resolved for interim behavior; future FPP mouse playability is OQ-018.
+- Needed by: T-034 interim behavior
+- Status: Answered → D-065
+- Answer: Option C approved on 2026-10-21. FPP mouse movement does not change aim; show the system cursor and hide the aiming reticle without pointer lock. The detailed follow-up is OQ-018. See [D-065](DECISIONS.md#d-065-interim-fpp-mouse-controls).

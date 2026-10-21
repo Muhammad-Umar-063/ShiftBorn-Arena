@@ -53,16 +53,16 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-028 | Match log, input log and replay tool | T-021 | M | DONE (2026-10-21) |
 | T-029 | Dev cheats | T-021 | S | DONE (2026-10-21) |
 | T-030 | Client shell, screens and settings storage | T-006, T-007 | M | DONE (2026-10-21) |
-| T-031 | Client connection, clock and netsim | T-030, T-023, T-027 | M | TODO |
-| T-032 | Renderer, greybox map and camera | T-030, T-004 | L | TODO |
-| T-033 | Entity views and effects | T-032 | M | TODO |
-| T-034 | Input manager, bindings, mouse aim | T-030 | M | TODO |
-| T-035 | Prediction and reconciliation | T-040, T-031, T-034 | L | TODO |
-| T-036 | Interpolation and event timeline | T-031, T-033 | M | TODO |
+| T-031 | Client connection, clock and netsim | T-030, T-023, T-027 | M | DONE (2026-10-21) |
+| T-032 | Renderer, greybox map and camera | T-030, T-004 | L | DONE (2026-10-21) |
+| T-033 | Entity views and effects | T-032 | M | DONE (2026-10-21) |
+| T-034 | Input manager, bindings, mouse aim | T-030 | M | DONE (2026-10-21) |
+| T-035 | Prediction and reconciliation | T-040, T-031, T-034 | L | DONE (2026-10-21) |
+| T-036 | Interpolation and event timeline | T-031, T-033 | M | DONE (2026-10-21) |
 | T-037 | Projectile views and local shots | T-035, T-036, T-016 | M | TODO |
 | T-038 | Debug overlay, hitbox view, dev console | T-031, T-029 | S | TODO |
 | T-039 | Synthesized sounds | T-030 | S | TODO |
-| T-040 | `predictStep` and prediction equivalence tests | T-019, T-014 | M | TODO |
+| T-040 | `predictStep` and prediction equivalence tests | T-019, T-014 | M | DONE (2026-10-21) |
 | T-041 | Ram Charge, knockback and stun | T-015, T-019, T-040 | L | TODO |
 | T-042 | Rail Shot | T-016 | M | TODO |
 | T-043 | Destructible cover | T-041 | S | TODO |
@@ -297,12 +297,12 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 - **Track:** Client · **Size:** M · **Depends on:** T-030, T-023, T-027
 - **Spec:** `docs/NETWORK_PROTOCOL.md` §6 to §10, §12
 - **Do:** `Connection` (join options, welcome checks, message routing, reconnection with token and backoff), clock sync estimator, probe replies, `netsim.ts` with lag, jitter and head-of-line loss.
-- **Done when:** joining shows live server ticks; AT-NET-17 passes; AT-NET-19 passes end to end.
+- **Done when:** joining shows live server ticks; production socket, validation, reconnection and netsim checks pass; AT-NET-19 passes end to end (D-066). Attempt full AT-NET-17 after T-034 and assign any remaining verification to T-068 without changing its pass condition.
 
 ### T-032 Renderer, greybox map and camera
 - **Track:** Client · **Size:** L · **Depends on:** T-030, T-004
 - **Spec:** `docs/ARCHITECTURE.md` §6.3; `docs/CONTROLS_UI.md` §7, §8; `docs/MAP_SPEC.md` §13
-- **Do:** Three.js renderer, floor grid and lane tints, walls 3 m and cover 1.2 m from map data, lane labels, sim-to-world mapping, camera with pitch, FOV, form zoom, lead and smoothing, occlusion fade, `palette.ts`.
+- **Do:** Three.js renderer, floor grid and lane tints, walls 3 m and cover 1.2 m from map data, lane labels, sim-to-world mapping, TPP and FPP camera views with TPP default, form zoom, TPP lead and smoothing, TPP occlusion fade, `palette.ts`.
 - **Done when:** AT-MAP-04 and AT-UI-13 (static parts) pass.
 
 ### T-033 Entity views and effects
@@ -320,14 +320,16 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 ### T-035 Prediction and reconciliation
 - **Track:** Client · **Size:** L · **Depends on:** T-040, T-031, T-034
 - **Spec:** `docs/NETWORK_PROTOCOL.md` §6 (or the Colyseus helper path from D-061)
-- **Do:** `Predictor` with pending frames, `predictStep`, reconciliation with replay, smooth-or-snap, correction counter, special cases (death, respawn, visibility return, reconnect).
+- **Do:** `Predictor` with pending project-sequence frames around T-040's shared `predictStep`, authoritative restoration, reconciliation with replay, smooth-or-snap, correction counter, special cases (death, respawn, visibility return, reconnect) (D-067). Resolve OQ-021's missing restoration fields before claiming full-state replay.
 - **Done when:** AT-NET-06 and AT-NET-07 pass.
+- **2026-10-21 evidence:** D-071 version 2 Schema restores weapon timers, held-edge and shot history, and immunity. Browser predictor replays pending project-sequence frames with the shared step, snaps inclusive Euclidean errors at 0.5 m, smooths smaller visual offsets for 100 ms, and resets on death, respawn, large teleport, resync and recovery. Real-server AT-NET-06 moved the displayed player and camera on the first frame at 150 ms. Real-server AT-NET-07 ran 60.756 s at 150 ms with 5.20 m of authoritative movement, one Dash start, two morph starts and zero qualifying corrections. Separate 0/100/200 ms, 150 ms with 2% loss, and 150 ms with 20 ms jitter plus 2% loss smoke checks passed. Focused tests, 583 unit tests, 13 nongated Playwright regressions, lint, typecheck, build, map validation, size (221,562 bytes gzipped) and diff checks passed; eleven gated Playwright cases were not counted in that nongated suite, and T-035's seven live cases ran separately.
 
 ### T-036 Interpolation and event timeline
 - **Track:** Client · **Size:** M · **Depends on:** T-031, T-033
 - **Spec:** `docs/NETWORK_PROTOCOL.md` §7
 - **Do:** snapshot ring buffer per remote player, render time, interpolation and capped extrapolation, teleport snap, event playback on the render timeline, immediate local HUD events.
 - **Done when:** AT-NET-08 passes.
+- **2026-10-21 evidence:** One-second detached, stable-ID histories, shorter-arc aim, boundary-switched discrete fields, 100 ms capped velocity extrapolation, strict >5 m snap and presentation-only 0.599 m frame catch-up. Validated same-tick event batches share the delayed world timeline; typed own vitals, damage/death and hit feedback arrive immediately, with projectile-owner and BotReplaced seat attribution. Real server and two production-schema browser clients passed AT-NET-08 at 0/100/200 ms, 150 ms plus 2% HOL loss, and 150 ms plus 20 ms jitter and 2% loss: respectively 217/72, 209/71, 211/71, 210/72 and 209/70 rendered frames/patches in ~3.5 s windows; 15.9–17.1 m displayed movement, 33–39 patch intervals with intermediate rendered poses, and maximum frame deltas 0.258/0.340/0.530/0.599/0.599 m. Focused tests, 13 nongated browser regressions, AT-NET-06 local first-frame regression, 594 unit tests, lint, typecheck, build, map and size checks pass. Sixteen gated browser cases are counted only in their separate live runs.
 
 ### T-037 Projectile views and local shots
 - **Track:** Client · **Size:** M · **Depends on:** T-035, T-036, T-016
@@ -350,8 +352,9 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 ### T-040 `predictStep` and prediction equivalence tests
 - **Track:** Sim · **Size:** M · **Depends on:** T-019, T-014
 - **Spec:** `docs/ARCHITECTURE.md` §4.6
-- **Do:** `predictStep` built from the same pure functions; equivalence tests: for 1,000 random input sequences of movement, Dash, morph and Turret turning (no other players), `predictStep` and the full `step` give identical local player state every tick.
-- **Done when:** the equivalence tests pass.
+- **Do:** Shared `LocalPredictState` and `predictStep` built from the same pure functions; equivalence tests for 1,000 random input sequences of movement, Dash, morph and Turret turning (no other players), comparing every predictable local field exactly every tick with the same authoritative inputs; separately test stale-authority divergence (D-067, D-068). D-069 defines shot-index allocation.
+- **Done when:** the approved conditional equivalence tests and relevant checks pass.
+- **2026-10-21 evidence:** Shared `predictStep` and `LocalPredictState` implemented; 1,000 seeded 48-tick sequences compare every predictable local field exactly against the full server step when both receive the same authoritative inputs. Targeted tests cover stale-Flux affordability divergence, shots, Dash interruption, morph timing, cover and statuses. OQ-021 was resolved for T-035 through D-071; it did not change T-040's shared-step acceptance.
 
 ### T-041 Ram Charge, knockback and stun
 - **Track:** Sim · **Size:** L · **Depends on:** T-015, T-019, T-040
@@ -470,8 +473,9 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 ### T-068 Stage A integration pass and E2E smoke
 - **Track:** All · **Size:** M · **Depends on:** T-060 to T-067, T-055, T-056
 - **Spec:** `docs/PROTOTYPE_SCOPE.md` §3.1; `docs/ACCEPTANCE_TESTS.md` §22 (Stage A items)
-- **Do:** Playwright smoke test (load, name, Play, HUD, move, morph, results) in CI; play full local matches with 2 to 4 people plus bots; file and fix blocker bugs.
-- **Done when:** every Stage A feature A1 to A27 has passing tests; AT-E2E-01 to AT-E2E-06 pass locally.
+- **Do:** Playwright smoke test (load, name, Play, HUD, move, morph, results) in CI; play full local matches with 2 to 4 people plus bots; file and fix blocker bugs. Complete any remaining full AT-NET-17 verification at `?lag=150&loss=2` (D-066).
+- **Done when:** every Stage A feature A1 to A27 has passing tests; AT-E2E-01 to AT-E2E-06 pass locally; full AT-NET-17 passes before the Fun Gate (D-066).
+- **AT-NET-17 handoff (2026-10-21):** At the exact `?lag=150&loss=2` URL, the live shell joined the real server, rendered advancing ticks, switched views, accepted pointer and keyboard input, and showed no browser errors. Authoritative movement also advanced in a separate live browser check. Full match playability remains unverified and must be checked here before the Fun Gate.
 
 ### T-069 Minimal deployment for internal sessions
 - **Track:** Ops · **Size:** S · **Depends on:** T-068
@@ -685,3 +689,11 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-028 | M | Not tracked | 2026-10-21 | Stage A match JSONL, gzipped authoritative input log, lifecycle checkpoints, match rotation and shutdown flush; replay CLI verifies every tick and final or unfinished-prefix hash. Ranking, analysis and full telemetry remain T-044, T-067 and T-130. |
 | T-029 | S | Not tracked | 2026-10-21 | Trusted DEV_CHEATS gate, strict private dev commands at the next tick, administrative player and room mutations, and replayable command checkpoints. Browser console remains T-038 and deployment validation remains AT-DEP-04. |
 | T-030 | M | Not tracked | 2026-10-21 | Plain-TS Landing and connection-state screens, safe names and room intents, WebGL 2 gate, versioned local settings, and responsive greybox UI. AT-UI-01/10 pass without a server. Networking is T-031, rendering T-032, full controls card/menu T-065, and settings integration T-122. |
+| T-032 | L | Not tracked | 2026-10-21 | Shared-data greybox map and one disposable Three renderer; 50°/35° north-up camera calibrated to 20.25 m ground depth, form zoom, lead and occlusion. Static AT-MAP-04/AT-UI-13 and two-size browser inspection pass. T-033 adds entities/effects; T-034 adds live aim/cursor input. |
+| T-032 camera revision | S | Not tracked | 2026-10-21 | User-requested TPP/FPP views replace the fixed north-up presentation. TPP is the saved default with a neutral local body; V/button switches views. TPP camera collision, FPP eye pose and opaque walls, form zoom, settings persistence and browser screenshots pass. |
+| T-033 | M | Not tracked | 2026-10-21 | ID-keyed form silhouettes and safe names, morph/protection/status/ability effects, instanced shards, clusters and authoritative rubble; scripted live-sim and future-producer fixtures. Client/browser checks pass; 8-player fixture uses 95 draw calls and 2,990 triangles. |
+| T-034 | M | Not tracked | 2026-10-21 | Documented bindings, 30 Hz input sampling and redundancy, TPP ground-ray aim, FPP interim no-mouse-aim behavior (D-065), browser input rules and fire modes. D-064 ambiguous morph edges verified for all combinations and recovery. AT-CTRL-01/02/03/09/11, AT-MORPH-13, full unit suite and live real-server movement checks pass. |
+| T-031 | M | Not tracked | 2026-10-21 | Production Colyseus connection, Welcome and Schema validation, clock and probes, reconnection and FIFO netsim verified with the real server. AT-NET-19 passed within two true ticks at 150 ms plus jitter. Live browser checks passed normally and at `?lag=150&loss=2` with no console errors. D-066 stages signoff; full AT-NET-17 playability remains a mandatory T-068 check. |
+| T-040 | M | Not tracked | 2026-10-21 | Shared local prediction with explicit tick/phase/cover and separate authoritative Flux, 1,000 seeded 48-tick exact conditional equivalence sequences, targeted boundaries and D-069 shot allocation. D-067 assigns browser reconciliation to T-035; OQ-021 remains its live-patch restoration gap. All required shared/sim/server/replay and workspace checks pass. |
+| T-035 | L | Not tracked | 2026-10-21 | D-071 protocol v2 full restoration, project-sequence replay, local visual correction and lifecycle resets. Production 150 ms RTT AT-NET-06 first-frame display pass and 60.756 s AT-NET-07 run with one Dash, two morphs and zero qualifying corrections; 0/100/200 ms and loss/jitter smoke passed. Full unit and required workspace checks passed. |
+| T-036 | M | Not tracked | 2026-10-21 | Tick-keyed remote interpolation, 100 ms extrapolation cap, stable seat attribution and one delayed event timeline with immediate local feedback. Two-client AT-NET-08 passed in all five required network conditions with moving remote players and maximum displayed frame jump 0.599 m. |

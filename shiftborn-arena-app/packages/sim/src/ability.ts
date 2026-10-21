@@ -111,10 +111,7 @@ function finishAbility(
 ): boolean {
   const ability = player.ability;
   if (ability === null) return false;
-  const end = endDash(ability, tick, cancelled);
-  player.ability = null;
-  player.abilityReadyTick[Form.Runner] = end.readyTick;
-  player.vel = { x: 0, y: 0 };
+  const end = finishDashState(player, tick, cancelled);
   emitEvent(world, {
     type: 'abilityEnd',
     seat: player.seat,
@@ -122,6 +119,21 @@ function finishAbility(
     cancelled: end.cancelled,
   });
   return true;
+}
+
+/** GR-8.2: the local predictor and server share the end transition. */
+export function finishDashState(
+  player: Pick<PlayerRecord, 'ability' | 'abilityReadyTick' | 'vel'>,
+  tick: number,
+  cancelled: 0 | 1,
+): ReturnType<typeof endDash> {
+  const ability = player.ability;
+  if (ability === null) throw new Error('cannot finish an absent Dash');
+  const end = endDash(ability, tick, cancelled);
+  player.ability = null;
+  player.abilityReadyTick[Form.Runner] = end.readyTick;
+  player.vel = { x: 0, y: 0 };
+  return end;
 }
 
 /** T-041 can invoke this on stun or knockback application. Idempotent. */

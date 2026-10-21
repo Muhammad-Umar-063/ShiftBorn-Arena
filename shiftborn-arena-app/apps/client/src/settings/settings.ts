@@ -7,6 +7,7 @@ export interface Preferences {
   aimAssistStrength: number;
   keyboardLockOn: boolean;
   fireMode: 'hold' | 'toggle';
+  cameraView: 'tpp' | 'fpp';
   masterVolume: number;
   effectsVolume: number;
   interfaceVolume: number;
@@ -25,6 +26,7 @@ export const DEFAULT_PREFERENCES: Readonly<Preferences> = Object.freeze({
   aimAssistStrength: 100,
   keyboardLockOn: true,
   fireMode: 'hold',
+  cameraView: 'tpp',
   masterVolume: 80,
   effectsVolume: 100,
   interfaceVolume: 80,
@@ -68,6 +70,7 @@ function safeName(value: unknown): value is string {
 
 function preferenceValue<K extends keyof Preferences>(key: K, value: unknown): value is Preferences[K] {
   if (key === 'fireMode') return value === 'hold' || value === 'toggle';
+  if (key === 'cameraView') return value === 'tpp' || value === 'fpp';
   if (key === 'aimAssistStrength' || key === 'masterVolume' ||
     key === 'effectsVolume' || key === 'interfaceVolume') return percentage(value);
   return typeof value === 'boolean';

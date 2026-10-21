@@ -14,6 +14,9 @@ export function grantSpawnProtection(player: PlayerRecord, tick: number): void {
 }
 
 /** Call on a successful shot or future ability start, never on input alone. */
-export function endSpawnProtection(player: PlayerRecord, tick: number): void {
+export function endSpawnProtection(
+  player: Pick<PlayerRecord, 'protectedEndTick'>,
+  tick: number,
+): void {
   if (isSpawnProtected(player, tick)) player.protectedEndTick = tick;
 }

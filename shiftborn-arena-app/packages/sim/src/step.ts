@@ -1,12 +1,12 @@
 import {
   Controller,
   DERIVED,
-  Form,
   InputButton,
   Phase,
   type InputFrame,
 } from '@shiftborn/shared';
 import { advanceAim } from './aim.js';
+import { advanceInputHistory } from './inputHistory.js';
 import {
   advanceDash,
   canStartAbility,
@@ -22,9 +22,10 @@ import { advanceMovement, decodeMoveDirection } from './movement.js';
 import type { Vec2 } from './math/vec2.js';
 import {
   cancelMorphOnDeath,
-  dueMorphCompletion,
+  completeMorphState,
   evaluateMorphRequest,
   morphKnockbackImmune,
+  requestedMorphTarget,
 } from './morph.js';
 import { PHASE_POLICY } from './phasePolicy.js';
 import { endSpawnProtection } from './protection.js';
@@ -39,9 +40,8 @@ import {
   type Projectile,
 } from './projectiles.js';
 import {
-  advanceTurretHeat,
-  advanceWeaponTimers,
-  canFireWeapon,
+  advanceWeaponState,
+  advanceShotSequence,
 } from './weaponRules.js';
 
 export interface StepContext {
@@ -67,18 +67,16 @@ const inputSystem: System = (world, context) => {
     if (
       player === null ||
       player === undefined ||
-      frame === undefined ||
-      frame.seq < Math.max(player.lastInputSeq, player.lastButtonInputSeq)
+      frame === undefined
     )
       continue;
-    // GR-5.1: held bits produce an edge only for a new input sequence.
-    if (frame.seq > player.lastButtonInputSeq) {
-      context.pressedButtonsBySeat[seat] =
-        context.inputPressedButtonsBySeat?.[seat] ??
-        (frame.buttons & ~player.lastHeldButtons);
-      player.lastHeldButtons = frame.buttons;
-      player.lastButtonInputSeq = frame.seq;
-    }
+    const history = advanceInputHistory(
+      player,
+      frame,
+      context.inputPressedButtonsBySeat?.[seat],
+    );
+    if (!history.accepted) continue;
+    context.pressedButtonsBySeat[seat] = history.pressed;
     // RESULTS still observes morph presses for GR-5.2 phase denial, without
     // applying movement/aim or advancing the T-012 lastInputSeq field.
     if (!PHASE_POLICY[world.phase].input) continue;
@@ -97,15 +95,6 @@ const inputSystem: System = (world, context) => {
   }
 };
 
-function requestedMorphTarget(pressedButtons: number): Form | null {
-  const runner = (pressedButtons & InputButton.MorphRunner) !== 0;
-  const beast = (pressedButtons & InputButton.MorphBeast) !== 0;
-  const turret = (pressedButtons & InputButton.MorphTurret) !== 0;
-  // OQ-014: multiple new targets have no defined priority, so select none.
-  if (Number(runner) + Number(beast) + Number(turret) !== 1) return null;
-  return runner ? Form.Runner : beast ? Form.Beast : Form.Turret;
-}
-
 const morphSystem: System = (world, context) => {
   // GR-5.4: all due completions precede all new requests on this tick.
   for (let seat = 0; seat < world.players.length; seat += 1) {
@@ -115,12 +104,8 @@ const morphSystem: System = (world, context) => {
       cancelMorphOnDeath(player);
       continue;
     }
-    const completion = dueMorphCompletion(player, world.tick);
+    const completion = completeMorphState(player, world.tick);
     if (completion === null) continue;
-    player.form = completion.form;
-    player.morph = null;
-    player.morphReadyTick = completion.morphReadyTick;
-    player.vel = completion.vel;
     emitEvent(world, { type: 'morphEnd', seat, form: completion.form });
   }
   for (let seat = 0; seat < world.players.length; seat += 1) {
@@ -250,39 +235,18 @@ const weaponsSystem: System = (world, context) => {
     const player = world.players[seat];
     if (player === null || player === undefined) continue;
     const held = context.fireHeldBySeat[seat] ?? false;
-    const permitted = canFireWeapon(
-      player,
-      world.phase,
-      world.tick,
-      player.ability?.id ?? null,
-    );
-    const heat = advanceTurretHeat(
-      player.heat,
-      player.overheatEndTick,
-      world.tick,
-      player.form === Form.Turret && held && permitted,
-    );
-    player.heat = heat.heat;
-    player.overheatEndTick = heat.overheatEndTick;
-    if (heat.overheated)
+    const result = advanceWeaponState(player, world.phase, world.tick, held);
+    if (result.overheated)
       emitEvent(world, {
         type: 'overheat',
         seat,
-        endTick: heat.overheatEndTick,
+        endTick: player.overheatEndTick,
       });
-    const timers = advanceWeaponTimers(
-      player.weapon,
-      player.form,
-      held,
-      permitted && !heat.overheated,
-    );
-    player.weapon = timers.timers;
-    if (!timers.fired) continue;
+    if (!result.fired) continue;
     const inputSeq = context.inputSeqBySeat[seat] ?? player.lastInputSeq;
-    if (player.lastShotInputSeq !== inputSeq) {
-      player.lastShotInputSeq = inputSeq;
-      player.nextShotIdx = 0;
-    }
+    const shotSequence = advanceShotSequence(player, inputSeq, player.form);
+    player.lastShotInputSeq = inputSeq;
+    player.nextShotIdx = shotSequence.nextShotIdx;
     const requestedAdvance = context.spawnAdvanceTicksBySeat?.[seat] ?? 0;
     const advanceTicks =
       player.controller === Controller.Human && !player.isBot
@@ -298,18 +262,13 @@ const weaponsSystem: System = (world, context) => {
             DERIVED.weapons.spawnAdvanceMaxTicks,
           )
         : 0;
-    const count =
-      player.form === Form.Beast
-        ? DERIVED.weapons.scatterCannon.pelletOffsetsRad.length
-        : 1;
     const fired = fireProjectiles(
       world,
       player,
       inputSeq,
-      player.nextShotIdx,
+      shotSequence.firstShotIdx,
       advanceTicks,
     );
-    player.nextShotIdx += count;
     for (const projectile of fired) spawned.push({ projectile, advanceTicks });
   }
   for (const { projectile, advanceTicks } of spawned) {

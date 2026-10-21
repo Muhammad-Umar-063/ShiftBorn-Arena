@@ -8,9 +8,10 @@ export type AppState =
   | { readonly kind: 'landing' }
   | { readonly kind: 'connecting'; readonly intent: ConnectionIntent }
   | { readonly kind: 'inMatch'; readonly intent: ConnectionIntent }
+  | { readonly kind: 'reconnecting'; readonly intent: ConnectionIntent }
   | {
       readonly kind: 'error';
-      readonly reason: 'timeout' | 'close';
+      readonly reason: 'timeout' | 'close' | 'lost';
       readonly closeCode?: number;
       readonly intent: ConnectionIntent;
     };
@@ -46,6 +47,9 @@ export const CONNECTION_TIMEOUT_MS = 10_000;
 export function errorPresentation(state: Extract<AppState, { kind: 'error' }>): ErrorPresentation {
   if (state.reason === 'timeout') return {
     message: 'Could not connect. Try again.', action: 'retry', label: 'Try again',
+  };
+  if (state.reason === 'lost') return {
+    message: 'Connection lost', action: 'retry', label: 'Play again',
   };
   switch (state.closeCode) {
     case CloseCode.VersionMismatch:
@@ -120,11 +124,30 @@ export class AppStateController {
   }
 
   showCloseError(code?: number): void {
-    if (this.disposed || this.state.kind !== 'inMatch') return;
+    if (this.disposed || (this.state.kind !== 'inMatch' &&
+      this.state.kind !== 'reconnecting')) return;
     const intent = this.state.intent;
     this.joinedController?.abort();
     this.joinedController = null;
     this.transition({ kind: 'error', reason: 'close', closeCode: code, intent });
+  }
+
+  showReconnecting(): void {
+    if (this.disposed || this.state.kind !== 'inMatch') return;
+    this.transition({ kind: 'reconnecting', intent: this.state.intent });
+  }
+
+  recovered(): void {
+    if (this.disposed || this.state.kind !== 'reconnecting') return;
+    this.transition({ kind: 'inMatch', intent: this.state.intent });
+  }
+
+  connectionLost(): void {
+    if (this.disposed || this.state.kind !== 'reconnecting') return;
+    const intent = this.state.intent;
+    this.joinedController?.abort();
+    this.joinedController = null;
+    this.transition({ kind: 'error', reason: 'lost', intent });
   }
 
   actOnError(reload: () => void): void {

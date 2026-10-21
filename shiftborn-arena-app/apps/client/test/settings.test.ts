@@ -27,7 +27,7 @@ describe('SettingsStore', () => {
     expect(store.snapshot()).toEqual({
       displayName: generatedPlayerName(entropy),
       preferences: {
-        aimAssistStrength: 100, keyboardLockOn: true, fireMode: 'hold',
+        aimAssistStrength: 100, keyboardLockOn: true, fireMode: 'hold', cameraView: 'tpp',
         masterVolume: 80, effectsVolume: 100, interfaceVolume: 80,
         screenShake: true, reducedMotion: false, damageNumbers: true,
         showFpsAndPing: false,
@@ -48,13 +48,15 @@ describe('SettingsStore', () => {
     expect(store.setName('  New_Player  ')).toBe(true);
     expect(store.update('aimAssistStrength', 24)).toBe(true);
     expect(store.update('fireMode', 'toggle')).toBe(true);
+    expect(store.update('cameraView', 'fpp')).toBe(true);
     expect(store.update('reducedMotion', true)).toBe(true);
     const detached = store.snapshot();
     detached.preferences.masterVolume = 0;
     expect(store.snapshot().preferences.masterVolume).toBe(80);
     const reloaded = new SettingsStore(() => storage, entropy).snapshot();
     expect(reloaded.displayName).toBe('New_Player');
-    expect(reloaded.preferences).toMatchObject({ aimAssistStrength: 24, fireMode: 'toggle', reducedMotion: true });
+    expect(reloaded.preferences).toMatchObject({ aimAssistStrength: 24,
+      fireMode: 'toggle', cameraView: 'fpp', reducedMotion: true });
     expect(DEFAULT_PREFERENCES.masterVolume).toBe(80);
     expect(store.setName('seventeen letters')).toBe(false);
     expect(store.setName('<script>')).toBe(false);
@@ -92,13 +94,14 @@ describe('SettingsStore', () => {
     expect(store.snapshot()).toEqual({
       displayName: 'Valid_Name',
       preferences: {
-        aimAssistStrength: 50, keyboardLockOn: false, fireMode: 'hold',
+        aimAssistStrength: 50, keyboardLockOn: false, fireMode: 'hold', cameraView: 'tpp',
         masterVolume: 80, effectsVolume: 100, interfaceVolume: 80,
         screenShake: false, reducedMotion: true, damageNumbers: true,
         showFpsAndPing: true,
       },
     });
     expect(store.update('masterVolume', 0)).toBe(true);
+    expect(store.update('cameraView', 'other' as 'tpp')).toBe(false);
     expect(envelope(storage)).not.toHaveProperty('extra');
     expect(envelope(storage).preferences).not.toHaveProperty('secret');
   });

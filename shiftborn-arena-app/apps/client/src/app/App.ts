@@ -15,7 +15,16 @@ import { connectingScreen } from '../ui/screens/connectingScreen.js';
 import { errorScreen } from '../ui/screens/errorScreen.js';
 import { howToPlayScreen } from '../ui/screens/howToPlayScreen.js';
 import { landingScreen } from '../ui/screens/landingScreen.js';
+import { reconnectingScreen } from '../ui/screens/reconnectingScreen.js';
 import { settingsScreen } from '../ui/screens/settingsScreen.js';
+import { InputManager, type InputTransport } from '../input/InputManager.js';
+import type { AuthoritativeRead, EventBatch } from '../net/messageValidation.js';
+import { ArenaRenderer } from '../render/Renderer.js';
+import { readEntitySnapshot } from '../render/entityState.js';
+import { staticRenderState } from '../render/stateView.js';
+import { Predictor } from '../predict/Predictor.js';
+import { readPredictionAuthority } from '../predict/authoritative.js';
+import type { LocalFeedback } from '../render/worldEventTimeline.js';
 
 export interface AppOptions {
   readonly buildId?: string;
@@ -25,17 +34,28 @@ export interface AppOptions {
   readonly launch?: ConnectionLauncher;
   readonly timers?: TimerApi;
   readonly reload?: () => void;
+  readonly onDispose?: () => void;
+  readonly inputTransport?: InputTransport;
+  readonly serverTickEstimate?: () => number | null;
 }
 
 /** T-030: one screen at a time; T-031 supplies the connection launcher. */
 export class App {
   readonly settings: SettingsStore;
   readonly controller: AppStateController;
+  readonly prediction = new Predictor();
   private query: RoomQuery;
   private draftName: string;
   private draftCode: string;
   private panel: 'settings' | 'howToPlay' | null = null;
   private returnFocus: 'settings' | 'howToPlay' | null = null;
+  private serverTick: number | null = null;
+  private localPlayerId: string | null = null;
+  private latestState: AuthoritativeRead | null = null;
+  private arenaRenderer: ArenaRenderer | null = null;
+  private inputManager: InputManager | null = null;
+  private predictionUnavailable = false;
+  private readonly localFeedbackListeners = new Set<(event: LocalFeedback) => void>();
   private readonly onKeyDown = (event: KeyboardEvent): void => {
     if (event.key !== 'Escape') return;
     if (this.panel !== null) {
@@ -60,6 +80,77 @@ export class App {
   }
 
   get state(): AppState { return this.controller.state; }
+  get input(): InputManager | null { return this.inputManager; }
+  get isPredictionUnavailable(): boolean { return this.predictionUnavailable; }
+
+  subscribeLocalFeedback(listener: (event: LocalFeedback) => void): () => void {
+    this.localFeedbackListeners.add(listener);
+    return () => { this.localFeedbackListeners.delete(listener); };
+  }
+
+  private emitLocalFeedback(event: LocalFeedback): void {
+    for (const listener of this.localFeedbackListeners) listener(event);
+  }
+
+  setLocalPlayerId(id: string): void {
+    if (id !== this.localPlayerId) {
+      this.prediction.reset();
+      this.arenaRenderer?.resetTimeline();
+    }
+    this.localPlayerId = id;
+    this.applyRenderState();
+  }
+
+  showAuthoritativeState(state: AuthoritativeRead): void {
+    this.latestState = state;
+    const local = this.localPlayerId === null ? undefined : state.players[this.localPlayerId];
+    if (local !== undefined) this.emitLocalFeedback({ kind: 'vitals', tick: state.tick,
+      hpFrac: local.hpFrac, flux: local.flux, alive: local.alive });
+    if (this.localPlayerId !== null) {
+      const authority = readPredictionAuthority(state, this.localPlayerId);
+      this.predictionUnavailable = authority === null;
+      if (authority === null) this.prediction.reset();
+      else this.prediction.adopt(authority, performance.now());
+    }
+    this.showServerTick(state.tick);
+    this.applyRenderState();
+  }
+
+  showEventBatch(batch: EventBatch): void {
+    for (const feedback of this.arenaRenderer?.ingestEventBatch(batch) ?? [])
+      this.emitLocalFeedback(feedback);
+  }
+
+  suspendInput(): void { this.inputManager?.suspend(); }
+  recoverInput(lastInputSeq: number): void { this.inputManager?.recover(lastInputSeq); }
+  resetPrediction(): void { this.prediction.reset(); }
+  resetPresentationTimeline(): void { this.arenaRenderer?.resetTimeline(); }
+
+  showServerTick(tick: number): void {
+    if (!Number.isInteger(tick) || tick < 0) return;
+    this.serverTick = tick;
+    const readout = this.root.querySelector<HTMLElement>('[data-server-tick]');
+    if (readout !== null) readout.textContent = `Server tick ${tick}`;
+  }
+
+  private toggleCameraView(): void {
+    const current = this.settings.snapshot().preferences.cameraView;
+    const next = current === 'tpp' ? 'fpp' : 'tpp';
+    this.settings.update('cameraView', next);
+    this.updateCameraViewLabel();
+    this.inputManager?.refreshPointerPresentation();
+    this.applyRenderState();
+  }
+
+  private updateCameraViewLabel(): void {
+    const button = this.root.querySelector<HTMLButtonElement>('[data-camera-view]');
+    if (button === null) return;
+    const view = this.settings.snapshot().preferences.cameraView.toUpperCase();
+    const mouseAimDisabled = view === 'FPP';
+    button.textContent = `View: ${view} (V)${mouseAimDisabled ? ' · mouse aim off' : ''}`;
+    button.setAttribute('aria-label', `Switch camera view, current ${view}${
+      mouseAimDisabled ? ', mouse aim disabled' : ''}`);
+  }
 
   /** T-031 may surface a normalized close code after joining. */
   reportClose(code?: number): void {
@@ -68,7 +159,14 @@ export class App {
 
   dispose(): void {
     document.removeEventListener('keydown', this.onKeyDown);
+    this.inputManager?.dispose();
+    this.inputManager = null;
+    this.arenaRenderer?.dispose();
+    this.arenaRenderer = null;
+    this.prediction.dispose();
+    this.localFeedbackListeners.clear();
     this.controller.dispose();
+    this.options.onDispose?.();
     this.root.replaceChildren();
   }
 
@@ -90,8 +188,22 @@ export class App {
   }
 
   private render(): void {
+    this.inputManager?.detach();
+    this.arenaRenderer?.dispose();
+    this.arenaRenderer = null;
     let view: { readonly screen: HTMLElement; readonly primary: HTMLElement };
+    let stage: HTMLElement | null = null;
     const state = this.controller.state;
+    if (state.kind !== 'inMatch' && state.kind !== 'reconnecting') {
+      this.inputManager?.dispose();
+      this.inputManager = null;
+    } else if (state.kind === 'reconnecting') this.inputManager?.suspend();
+    if (state.kind === 'connecting') {
+      this.prediction.reset();
+      this.latestState = null;
+      this.localPlayerId = null;
+      this.serverTick = null;
+    }
     if (state.kind === 'landing' && this.panel === 'settings') {
       view = settingsScreen(this.settings.snapshot(), {
         update: <K extends keyof Preferences>(key: K, value: Preferences[K]) => {
@@ -125,6 +237,8 @@ export class App {
       );
     } else if (state.kind === 'connecting') {
       view = connectingScreen(state.intent, () => this.controller.cancel());
+    } else if (state.kind === 'reconnecting') {
+      view = reconnectingScreen();
     } else if (state.kind === 'error') {
       const leaveInvalidRoom = (): void => {
         if (state.closeCode === CloseCode.InvalidRoomCode) {
@@ -140,17 +254,71 @@ export class App {
         this.controller.home();
       });
     } else {
-      const screen = element('main', 'screen compact-screen');
-      const frame = element('section', 'arena-frame compact-frame');
-      frame.append(element('p', 'eyebrow', 'Arena access'),
-        element('h1', 'screen-title', 'Match ready'));
-      const primary = action('Back to menu', 'button button-secondary');
+      const screen = element('main', 'match-screen');
+      screen.setAttribute('aria-label', 'Arena match');
+      stage = element('div', 'arena-stage');
+      stage.setAttribute('aria-label', 'Greybox arena map');
+      const overlay = element('div', 'match-overlay');
+      const tick = element('p', 'match-tick', this.serverTick === null
+        ? 'Waiting for server state' : `Server tick ${this.serverTick}`);
+      tick.dataset.serverTick = '';
+      tick.setAttribute('role', 'status');
+      const primary = action('Back to menu', 'button button-secondary match-exit');
       primary.addEventListener('click', () => this.controller.home());
-      frame.append(primary);
-      screen.append(frame);
+      const cameraView = action('', 'button button-secondary match-view');
+      cameraView.dataset.cameraView = '';
+      cameraView.addEventListener('click', () => this.toggleCameraView());
+      const actions = element('div', 'match-actions');
+      actions.append(cameraView, primary);
+      overlay.append(tick, actions);
+      screen.append(stage, overlay);
       view = { screen, primary };
     }
     this.root.replaceChildren(view.screen);
+    if (stage !== null) this.updateCameraViewLabel();
+    if (stage !== null) {
+      try {
+        this.arenaRenderer = new ArenaRenderer(stage, () => {
+          this.arenaRenderer = null;
+          this.controller.showCloseError(CloseCode.InternalRoomError);
+        });
+        this.arenaRenderer.setLocalPresentation(() =>
+          this.prediction.presentation(performance.now()));
+        this.arenaRenderer.setClockEstimate(this.options.serverTickEstimate ?? null);
+        this.applyRenderState();
+        if (this.inputManager === null) {
+          this.inputManager = new InputManager({
+            transport: this.options.inputTransport ?? { sendInput: () => true },
+            fireMode: () => this.settings.snapshot().preferences.fireMode,
+            player: () => {
+              if (this.localPlayerId === null) return null;
+              const predicted = this.prediction.presentation(performance.now());
+              if (predicted !== null) return {
+                x: predicted.x, y: predicted.y, aim: predicted.aim };
+              const player = this.latestState?.players[this.localPlayerId];
+              return player === undefined ? null :
+                { x: player.x, y: player.y, aim: player.aim };
+            },
+            camera: () => this.arenaRenderer?.camera ?? null,
+            perspective: () => this.settings.snapshot().preferences.cameraView,
+            onAim: (radians, distanceM) =>
+              this.arenaRenderer?.setLocalAim(radians, distanceM),
+            onFrame: (frame) => this.prediction.onFrame(frame),
+            onUrgentInput: () => this.arenaRenderer?.sampleInputNow(),
+            onAction: (action) => {
+              if (action === 'cameraView') this.toggleCameraView();
+            },
+            devBuild: import.meta.env.DEV,
+          });
+        }
+        this.inputManager.attach(this.arenaRenderer.renderer.domElement, stage);
+        this.inputManager.setActive(true);
+        this.arenaRenderer.setFixedStep(() => { this.inputManager?.tick(); });
+      } catch {
+        this.controller.showCloseError(CloseCode.InternalRoomError);
+        return;
+      }
+    }
     const returning = state.kind === 'landing' && this.panel === null && this.returnFocus !== null
       ? view.screen.querySelector<HTMLButtonElement>(`button[data-action="${this.returnFocus}"]`)
       : null;
@@ -158,5 +326,16 @@ export class App {
       ? view.screen.querySelector<HTMLInputElement>('input') : null;
     (returning ?? firstSetting ?? view.primary).focus();
     this.returnFocus = null;
+  }
+
+  private applyRenderState(): void {
+    if (this.arenaRenderer === null || this.latestState === null ||
+      this.localPlayerId === null) return;
+    const state = staticRenderState(this.latestState, this.localPlayerId,
+      this.settings.snapshot().preferences.reducedMotion,
+      this.settings.snapshot().preferences.cameraView);
+    if (state === null) return;
+    this.arenaRenderer.setView(state.view);
+    this.arenaRenderer.setEntities(readEntitySnapshot(this.latestState, this.localPlayerId));
   }
 }

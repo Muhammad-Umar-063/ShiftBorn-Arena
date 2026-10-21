@@ -187,6 +187,7 @@ function mirrorPlayer(
   changed += assign(target, 'heat', player.heat);
   changed += assign(target, 'overheatEndTick', player.overheatEndTick);
   changed += assign(target, 'stunEndTick', player.stunEndTick);
+  changed += assign(target, 'ccImmuneEndTick', player.ccImmuneEndTick);
   changed += assign(target, 'knockbackEndTick', player.knockback?.endTick ?? 0);
   changed += assign(target, 'kbvx', player.knockback?.vel.x ?? 0);
   changed += assign(target, 'kbvy', player.knockback?.vel.y ?? 0);
@@ -204,6 +205,13 @@ function mirrorPlayer(
       player.stats.damageDealtByForm[Form.Turret],
   );
   changed += assign(target, 'lastInputSeq', Math.max(0, player.lastInputSeq));
+  changed += assign(target, 'lastButtonInputSeq', Math.max(0, player.lastButtonInputSeq));
+  changed += assign(target, 'lastHeldButtons', player.lastHeldButtons);
+  changed += assign(target, 'lastShotInputSeq', Math.max(0, player.lastShotInputSeq));
+  changed += assign(target, 'nextShotIdx', player.nextShotIdx);
+  changed += assign(target, 'weaponRunnerNextShotIn', player.weapon[Form.Runner].nextShotIn);
+  changed += assign(target, 'weaponBeastNextShotIn', player.weapon[Form.Beast].nextShotIn);
+  changed += assign(target, 'weaponTurretNextShotIn', player.weapon[Form.Turret].nextShotIn);
   const source = aimSourceCode(player.aimSource);
   if (source !== null) changed += assign(target, 'aimSource', source);
   return changed;

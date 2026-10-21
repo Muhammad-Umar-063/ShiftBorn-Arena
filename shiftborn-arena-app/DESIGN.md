@@ -48,7 +48,7 @@ A competition check-in station: clear arena identity, immediate entry action, an
 - **Register and signature:** Functional game shell with a two-line uppercase wordmark, lime entry action, and small monospace status labels.
 - **Restraint:** Forms, errors, settings, and WebGL failure messages use familiar semantic controls and plain wording.
 - **Anti-references:** Avoid production game art, downloaded fonts, decorative motion, and a dashboard-like density in this foundation task.
-- **Token ownership:** This file records the durable intent. `apps/client/src/ui/styles.css` owns runtime CSS custom properties and component rules; the frontmatter colors mirror those custom properties directly. Updates to these tokens must update both places together.
+- **Token ownership:** This file records the durable intent. `apps/client/src/ui/styles.css` owns runtime CSS custom properties and component rules; the frontmatter colors mirror those custom properties directly. `apps/client/src/render/palette.ts` owns flat Three scene colors for the map and markers. Updates to shell tokens must update this file and the CSS together.
 
 ## Colors
 
@@ -61,6 +61,8 @@ System sans covers controls and prose. The installed Arial Black fallback stack 
 ## Layout
 
 The landing frame reaches at most 980px and uses two columns above 700px. At 700px and below it becomes one column. Compact state screens reach 620px; settings reach 820px and use two form columns above 700px. The page centers content when it fits and scrolls vertically when height is limited. There must be no horizontal scrolling at the target viewports.
+
+The match screen fills the viewport. The Three canvas owns the full background; status, a two-view TPP/FPP control, and Back to menu sit in a DOM overlay. TPP is the initial saved view. The map uses dark lane floors, a one-metre grid, and subdued labels so later player colors remain prominent.
 
 ## Elevation & Depth
 

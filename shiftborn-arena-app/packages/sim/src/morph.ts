@@ -2,6 +2,7 @@ import {
   BALANCE,
   DERIVED,
   Form,
+  InputButton,
   MorphDenialReason,
   Phase,
   type MorphDenialReason as MorphDenialReasonType,
@@ -18,6 +19,15 @@ export interface MorphCompletion {
   readonly form: Form;
   readonly morphReadyTick: number;
   readonly vel: Vec2;
+}
+
+/** D-064: a tick with multiple distinct target edges has no morph target. */
+export function requestedMorphTarget(pressedButtons: number): Form | null {
+  const runner = (pressedButtons & InputButton.MorphRunner) !== 0;
+  const beast = (pressedButtons & InputButton.MorphBeast) !== 0;
+  const turret = (pressedButtons & InputButton.MorphTurret) !== 0;
+  if (Number(runner) + Number(beast) + Number(turret) !== 1) return null;
+  return runner ? Form.Runner : beast ? Form.Beast : Form.Turret;
 }
 
 export function morphCost(target: Form): number {
@@ -79,6 +89,20 @@ export function dueMorphCompletion(
     morphReadyTick: morph.endTick + DERIVED.morph.cooldownTicks,
     vel: morph.target === Form.Turret ? { x: 0, y: 0 } : { ...player.vel },
   };
+}
+
+/** GR-5.4: shared state transition; callers own events and Flux. */
+export function completeMorphState(
+  player: Pick<PlayerRecord, 'morph' | 'form' | 'morphReadyTick' | 'vel'>,
+  tick: number,
+): MorphCompletion | null {
+  const completion = dueMorphCompletion(player, tick);
+  if (completion === null) return null;
+  player.form = completion.form;
+  player.morph = null;
+  player.morphReadyTick = completion.morphReadyTick;
+  player.vel = completion.vel;
+  return completion;
 }
 
 /** D-013: status systems must ignore knockback while a morph is active. */

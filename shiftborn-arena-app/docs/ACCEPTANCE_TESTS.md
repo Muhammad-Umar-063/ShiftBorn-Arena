@@ -98,6 +98,7 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
 | AT-MORPH-10 | SIM | GR-5.1 same form | Requesting the current form does nothing and emits no event |
 | AT-MORPH-11 | SIM | GR-5.2 phase | Morph requests during COUNTDOWN and RESULTS are denied (`phase`) |
 | AT-MORPH-12 | SIM | D-014 cooldowns keep running | Dash used as Runner, morph to Beast and back within 5 s: Dash is ready exactly 150 ticks after the dash ended, not reset |
+| AT-MORPH-13 | SIM | D-064 ambiguous target edges | Every pair and all three simultaneous rising morph targets start no morph, spend no Flux and emit no new morph event. Other inputs, active morphs, timers and Flux regeneration continue; an already-held target plus one new target is valid; release and repress works. |
 
 ## 8. Health and damage
 
@@ -245,6 +246,8 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
 | AT-NET-18 | TOOL | Bandwidth | In a full room, average downstream under 10 KB/s and upstream under 4 KB/s per client |
 | AT-NET-19 | SERVER | Clock sync | Client server-tick estimate stays within 2 ticks of the true tick with 150 ms ± 20 ms jitter |
 
+D-066 stages T-031 signoff. AT-NET-17 keeps its full manual pass condition above. Attempt it after T-034; any remaining verification is mandatory in T-068 before the Fun Gate. Schema delivery or movement alone is not an AT-NET-17 pass.
+
 ## 17. Bots
 
 | Id | Type | Check | Pass when |
@@ -291,7 +294,7 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
 | AT-UI-10 | E2E | Settings persistence | A changed setting survives reload; with storage blocked the game still runs on defaults |
 | AT-UI-11 | MANUAL | Readability at 821 x 462 | All HUD text legible (12 px minimum); nothing overlaps |
 | AT-UI-12 | MANUAL | Sounds | Every sound in CONTROLS_UI §9 plays on its event; audio unlocks on first input; muted when the tab is hidden |
-| AT-UI-13 | MANUAL | Camera | Zoom per form; lead toward aim; walls in front of players fade; no rotation |
+| AT-UI-13 | MANUAL | Camera | TPP default behind player; FPP at eye height; V/button switches views; zoom per form; TPP lead and wall fade; FPP walls stay opaque; camera follows aim in both views |
 | AT-UI-14 | MANUAL | Controls card | Shown in the first COUNTDOWN of a session; does not state which form beats which |
 
 ## 20. Performance, load and soak
