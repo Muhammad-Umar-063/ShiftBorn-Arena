@@ -22,7 +22,7 @@ Shiftborn Arena is a browser-based, top-down 3D multiplayer arena game for up to
 - **Beast:** tanky melee bruiser, Scatter Cannon, Ram Charge; counters Runner.
 - **Turret:** stationary, Rail Repeater, Rail Shot; counters Beast.
 
-Morphing costs **Flux**. Matches last 3 minutes. Bots fill empty seats and immediately hand them to joining humans. The server is authoritative and shares one deterministic simulation with the client. The production target is CrazyGames, but production starts only after prototype approval.
+Morphing costs **Flux**. Matches last 10 minutes of active play (D-073); players start as Runner with a dagger, find guns as loot and unlock Beast and Turret at 3 and 6 KOs (D-074 to D-077). Bots fill empty seats and immediately hand them to joining humans. The server is authoritative and shares one deterministic simulation with the client. The production target is CrazyGames, but production starts only after prototype approval.
 
 Team: three engineers, about 30 hours per week each, using one ordered queue without per-person assignments. Owner and approver: **Hamza**.
 
@@ -39,7 +39,8 @@ Prototype boundary:
 1. Build only the features listed in `docs/PROTOTYPE_SCOPE.md` §3: A1 to A27 and B1 to B14.
 2. Do not build anything excluded by §4, even partially. This includes characters, Ultimates, Overdrive, crates, Bounty and Wanted, arena events, hazards, jump pads, Boot Camp, touch and controller input, accounts, XP, Coins, cosmetics, CrazyGames SDK, ads, multiple regions, interest management, art, music, Reactor War, King of the Morph, health regeneration and Overdrive Clash.
 3. Preserve the production seams in the §4 "Do not block it by" column: reserved `ultimate` and `crate` input bits, crate points in map data, data-driven abilities per form, `ModeRules`, `PlatformAdapter`, per-entity render views and string player ids.
-4. Prototype code becomes production code. Keep it tested and clean, but use greybox presentation only (D-045).
+4. Prototype code becomes production code. Keep it tested and clean, but use greybox presentation only (D-045), except where the 2026-10-23 release request allows art and audio (D-081).
+5. The 2026-10-23 release request (D-073 to D-082) adds the features mapped in `docs/CHANGE_CONTRACT.md`, including the six guns as random loot. It lifts §4 exclusions only where those decisions say so; crates, Ultimates and the other §4 items stay excluded.
 
 ---
 
@@ -156,7 +157,7 @@ Breaking any rule below means the task is not done.
 7. Dependency direction is fixed: `shared` depends on nothing; `sim` depends only on `shared`; server and client may depend on `shared` and `sim`, never on each other.
 8. Put shared rules in `packages/sim` or `packages/shared`. Do not duplicate gameplay logic in client and server.
 9. A protocol change updates `docs/NETWORK_PROTOCOL.md` and bumps the version in `packages/shared/src/protocol.ts` in the same task. Validate and clamp every client field on the server.
-10. Greybox only: primitives, flat colors, one outline pass and synthesized Web Audio effects. No downloaded, purchased or generated art, fonts or audio. No music.
+10. Greybox only: primitives, flat colors, one outline pass and synthesized Web Audio effects. No downloaded, purchased or generated art, fonts or audio. No music. Exception: D-081 allows art and audio integration for the 2026-10-23 release scope, with every asset's source and license recorded.
 11. Do not add a runtime dependency without a one-line reason in the completion report. Do not add the packages forbidden by `ARCHITECTURE.md` §2: UI frameworks, state libraries, physics engines, Socket.IO or third-party analytics.
 12. Never weaken, skip or delete a test to get green. Fix an incorrect test against the higher-authority specification and report why. A lint suppression needs a reason comment.
 13. Never store secrets in the repository or client bundle. Document every environment variable in `.env.example` and `ARCHITECTURE.md` §5.5.
@@ -279,7 +280,7 @@ Write project docs in plain words and short sentences. Prefer tables for values,
 | Morph | Change form; costs Flux; 0.5 s; old form stays active; 3 s cooldown |
 | Flux | Combat resource from 0 to 100 used for morphing |
 | Counter triangle | Runner > Turret > Beast > Runner through matchup multipliers |
-| Frenzy | 3-minute free-for-all ranked by KOs |
+| Frenzy | 10-minute free-for-all ranked by KOs |
 | Zone Frenzy | Frenzy plus a moving Surge Zone in Stage B |
 | Seat | One of 8 room slots, held by a human or bot |
 | Proxy control | Bot drives a hidden, AFK or reconnecting human seat |

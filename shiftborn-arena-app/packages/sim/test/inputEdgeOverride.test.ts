@@ -11,7 +11,7 @@ import { makeTestWorld } from './fixtures/makeTestWorld.js';
 
 const player = { id: 'edge-player', name: 'Edge', isBot: false, seat: 0 };
 function frame(seq: number, buttons: number): InputFrame {
-  return {
+  return { aimDist: 120,
     seq,
     moveX: 0,
     moveY: 0,
@@ -23,7 +23,7 @@ function frame(seq: number, buttons: number): InputFrame {
 
 describe('T-022 StepContext merged input edges', () => {
   it('AT-NET-03 applies a press released in the newer frame exactly once', () => {
-    const world = makeTestWorld({ seed: 70, players: [player] });
+    const world = makeTestWorld({ seed: 70, players: [player], unlockAllForms: true });
     world.phase = Phase.Playing;
     const record = world.players[0];
     if (record === null || record === undefined) throw new Error('missing player');
@@ -45,7 +45,7 @@ describe('T-022 StepContext merged input edges', () => {
   });
 
   it('keeps default edge derivation when no server override is supplied', () => {
-    const world = makeTestWorld({ seed: 71, players: [player] });
+    const world = makeTestWorld({ seed: 71, players: [player], unlockAllForms: true });
     world.phase = Phase.Playing;
     const record = world.players[0];
     if (record === null || record === undefined) throw new Error('missing player');
@@ -70,7 +70,7 @@ describe('T-022 StepContext merged input edges', () => {
   });
 
   it('AT-MORPH-13 D-064 rejects distinct target edges merged into one server tick', () => {
-    const world = makeTestWorld({ seed: 73, players: [player] });
+    const world = makeTestWorld({ seed: 73, players: [player], unlockAllForms: true });
     world.phase = Phase.Playing;
     const record = world.players[0];
     if (record === null || record === undefined) throw new Error('missing player');

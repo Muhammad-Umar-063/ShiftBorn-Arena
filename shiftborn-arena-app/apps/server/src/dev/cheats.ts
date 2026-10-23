@@ -1,7 +1,8 @@
-import { BALANCE, Form, Mode, Phase } from '@shiftborn/shared';
+import { BALANCE, Form, Mode, Phase, isGunId, type GunId } from '@shiftborn/shared';
 import {
-  administrativelyEliminate, administrativelyTeleport, setAdministrativeFlux,
-  setAdministrativeForm, setAdministrativeHealth, type PlayerRecord, type World,
+  collectGun, administrativelyEliminate, administrativelyTeleport, setAdministrativeFlux,
+  setAdministrativeForm, setAdministrativeHealth, setAdministrativeUnlockAll,
+  type PlayerRecord, type World,
 } from '@shiftborn/sim';
 import type { BotDifficulty } from '../config.js';
 
@@ -9,6 +10,8 @@ export type DevCommand =
   | { readonly kind: 'flux'; readonly amount: number }
   | { readonly kind: 'hp'; readonly fraction: number }
   | { readonly kind: 'form'; readonly form: Form }
+  | { readonly kind: 'unlock' }
+  | { readonly kind: 'give'; readonly gun: GunId }
   | { readonly kind: 'kill' }
   | { readonly kind: 'endmatch' }
   | { readonly kind: 'bots'; readonly count: number }
@@ -94,6 +97,11 @@ export function parseDevCommand(text: string): DevParseResult {
       return tokens.length === 2 && form !== null
         ? { ok: true, command: { kind: 'form', form } } : invalid();
     }
+    case '/give':
+      return tokens.length === 2 && isGunId(first)
+        ? { ok: true, command: { kind: 'give', gun: first } } : invalid();
+    case '/unlock':
+      return tokens.length === 1 ? { ok: true, command: { kind: 'unlock' } } : invalid();
     case '/kill':
       return tokens.length === 1 ? { ok: true, command: { kind: 'kill' } } : invalid();
     case '/endmatch':
@@ -152,6 +160,12 @@ export function executeDevCommand(command: DevCommand, env: DevEnvironment): Dev
       return setAdministrativeForm(world, player, command.form)
         ? success(`Form set to ${command.form}.`)
         : failure('Player is not alive.');
+    case 'give':
+      return collectGun(player, command.gun, world.tick) !== null
+        ? success(`Granted ${command.gun}.`) : failure('Reserve is already full.');
+    case 'unlock':
+      setAdministrativeUnlockAll(player);
+      return success('All forms unlocked.');
     case 'kill':
       return administrativelyEliminate(world, player)
         ? success('Player eliminated.') : failure('Player is not alive.');

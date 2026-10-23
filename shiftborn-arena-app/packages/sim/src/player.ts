@@ -7,11 +7,23 @@ import {
   Phase,
   WeaponId,
 } from '@shiftborn/shared';
+import {
+  cloneGuns,
+  emptyGuns,
+  noSelection,
+  zeroGunTimers,
+  type GunInventory,
+  type GunTimers,
+  type MeleeState,
+  type ReloadState,
+  type SelectedTiers,
+} from './loadout.js';
 import type { Vec2 } from './math/vec2.js';
 import { emitEvent } from './events.js';
 import { chooseSpawnPoint } from './spawns.js';
 import { removeOwnedProjectiles } from './projectiles.js';
 import { grantSpawnProtection } from './protection.js';
+import { freshUnlocks } from './progression.js';
 import type { World } from './world.js';
 
 export type AbilityState = {
@@ -60,13 +72,23 @@ export interface PlayerRecord {
   vel: Vec2;
   aim: number;
   form: Form;
+  /** GR-18.2: forms this player may morph into during the current match. */
+  unlocked: Record<Form, boolean>;
   morph: { target: Form; endTick: number } | null;
   morphReadyTick: number;
   hpFrac: number;
   flux: number;
   ability: AbilityState | null;
   abilityReadyTick: Record<Form, number>;
-  weapon: Record<Form, { nextShotIn: number }>;
+  /** GR-7.18: ownership and exact ammunition of every gun (D-076). */
+  guns: GunInventory;
+  /** GR-7.15: 0 means no gun selected for that form (dagger). */
+  selectedTier: SelectedTiers;
+  /** GR-7.2: `nextShotIn` seconds for every gun. */
+  gunTimers: GunTimers;
+  reload: ReloadState | null;
+  swapReadyTick: number;
+  melee: MeleeState | null;
   heat: number;
   overheatEndTick: number;
   stunEndTick: number;
@@ -84,6 +106,9 @@ export interface PlayerRecord {
   lastShotInputSeq: number;
   nextShotIdx: number;
   aimSource: AimSource;
+  /** GR-4.18: aim distance in meters; only the Arc Mortar uses it. */
+  aimDistM: number;
+  sprinting: boolean;
   stats: PlayerStats;
 }
 
@@ -101,6 +126,10 @@ function zeroWeapons(): Record<WeaponId, number> {
     [WeaponId.PulsePistol]: 0,
     [WeaponId.ScatterCannon]: 0,
     [WeaponId.RailRepeater]: 0,
+    [WeaponId.RicochetDisc]: 0,
+    [WeaponId.SlugCannon]: 0,
+    [WeaponId.ArcMortar]: 0,
+    [WeaponId.Dagger]: 0,
   };
 }
 
@@ -162,6 +191,7 @@ export function createPlayer(
     vel: { x: 0, y: 0 },
     aim: 0,
     form: Form.Runner,
+    unlocked: freshUnlocks(),
     morph: null,
     morphReadyTick: tick,
     hpFrac: 0,
@@ -172,11 +202,12 @@ export function createPlayer(
       [Form.Beast]: tick,
       [Form.Turret]: tick,
     },
-    weapon: {
-      [Form.Runner]: { nextShotIn: 0 },
-      [Form.Beast]: { nextShotIn: 0 },
-      [Form.Turret]: { nextShotIn: 0 },
-    },
+    guns: emptyGuns(),
+    selectedTier: noSelection(),
+    gunTimers: zeroGunTimers(),
+    reload: null,
+    swapReadyTick: tick,
+    melee: null,
     heat: 0,
     overheatEndTick: tick,
     stunEndTick: tick,
@@ -194,6 +225,7 @@ export function createPlayer(
     lastShotInputSeq: -1,
     nextShotIdx: 0,
     aimSource: player.isBot ? AimSource.Bot : AimSource.Mouse,
+    aimDistM: BALANCE.aimDistance.defaultM, sprinting: false,
     stats: createPlayerStats(),
   };
 }
@@ -205,6 +237,8 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
   player.vel = { x: 0, y: 0 };
   player.aim = 0;
   player.form = Form.Runner;
+  // GR-18.1, D-074: progress, unlocks and gear reset every match.
+  player.unlocked = freshUnlocks();
   player.morph = null;
   player.morphReadyTick = tick;
   player.hpFrac = 1;
@@ -215,11 +249,12 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
     [Form.Beast]: tick,
     [Form.Turret]: tick,
   };
-  player.weapon = {
-    [Form.Runner]: { nextShotIn: 0 },
-    [Form.Beast]: { nextShotIn: 0 },
-    [Form.Turret]: { nextShotIn: 0 },
-  };
+  player.guns = emptyGuns();
+  player.selectedTier = noSelection();
+  player.gunTimers = zeroGunTimers();
+  player.reload = null;
+  player.swapReadyTick = tick;
+  player.melee = null;
   player.heat = 0;
   player.overheatEndTick = tick;
   player.stunEndTick = tick;
@@ -232,6 +267,7 @@ export function resetPlayerForMatch(player: PlayerRecord, tick: number): void {
   player.fluxRegenTicks = 0;
   player.damageLog = [];
   player.aimSource = player.isBot ? AimSource.Bot : AimSource.Mouse;
+  player.aimDistM = BALANCE.aimDistance.defaultM; player.sprinting = false;
   player.stats = createPlayerStats();
 }
 
@@ -323,14 +359,15 @@ export function handoffPlayerToBot(
     controller: Controller.Bot,
     pos: { ...human.pos },
     vel: { ...human.vel },
+    unlocked: { ...human.unlocked },
     morph: human.morph === null ? null : { ...human.morph },
     ability: human.ability === null ? null : { ...human.ability },
     abilityReadyTick: { ...human.abilityReadyTick },
-    weapon: {
-      [Form.Runner]: { ...human.weapon[Form.Runner] },
-      [Form.Beast]: { ...human.weapon[Form.Beast] },
-      [Form.Turret]: { ...human.weapon[Form.Turret] },
-    },
+    guns: cloneGuns(human.guns),
+    selectedTier: { ...human.selectedTier },
+    gunTimers: { ...human.gunTimers },
+    reload: human.reload === null ? null : { ...human.reload },
+    melee: human.melee === null ? null : { ...human.melee },
     knockback:
       human.knockback === null
         ? null

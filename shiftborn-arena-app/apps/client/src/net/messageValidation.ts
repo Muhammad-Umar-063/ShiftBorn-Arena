@@ -1,5 +1,5 @@
 import {
-  BALANCE, GREYBOX_V1, PROTOCOL_VERSION, isValidRoomCode,
+  BALANCE, GREYBOX_V1, MAX_EVENT_ID, PROTOCOL_VERSION, isValidRoomCode,
 } from '@shiftborn/shared';
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -31,6 +31,7 @@ export interface Welcome {
   readonly serverTick: number;
   readonly tickRate: number;
   readonly patchRate: number;
+  readonly devCheatsEnabled: boolean;
   readonly testerCode: string;
 }
 
@@ -51,7 +52,8 @@ export function validateWelcome(value: unknown, localHash: string): WelcomeResul
     !uint(v.seat, 7) || typeof v.isHost !== 'boolean' ||
     !isValidRoomCode(v.roomCode) || !text(v.mapId) || v.mapId !== GREYBOX_V1.id ||
     !uint(v.serverTick) || v.tickRate !== BALANCE.tick.rateHz ||
-    v.patchRate !== BALANCE.tick.patchRateHz || !text(v.testerCode))
+    v.patchRate !== BALANCE.tick.patchRateHz ||
+    typeof v.devCheatsEnabled !== 'boolean' || !text(v.testerCode))
     return { kind: 'invalid' };
   return { kind: 'valid', value: {
     protocolVersion: v.protocolVersion, buildId: v.buildId,
@@ -59,7 +61,7 @@ export function validateWelcome(value: unknown, localHash: string): WelcomeResul
     roomCode: v.roomCode, mapId: v.mapId,
     balanceVersion: v.balanceVersion, balanceHash: v.balanceHash,
     serverTick: v.serverTick, tickRate: v.tickRate, patchRate: v.patchRate,
-    testerCode: v.testerCode,
+    devCheatsEnabled: v.devCheatsEnabled, testerCode: v.testerCode,
   } };
 }
 
@@ -94,6 +96,20 @@ export interface AuthoritativeRead {
   readonly full: Readonly<Record<string, unknown>>;
 }
 
+export interface LootRead { readonly id: string; readonly gun: number; readonly x: number; readonly y: number }
+
+/** T-057: floor items come only from validated authoritative schema data. */
+export function readLootState(value: unknown): readonly LootRead[] | null {
+  if (!record(value)) return null;
+  const items: LootRead[] = [];
+  for (const [id, raw] of Object.entries(value)) {
+    if (!/^(0|[1-9]\d*)$/.test(id) || !uint(Number(id)) || !record(raw) ||
+      !uint(raw.gun, 5) || !finite(raw.x) || !finite(raw.y)) return null;
+    items.push({ id, gun: raw.gun, x: raw.x, y: raw.y });
+  }
+  return items.sort((a, b) => Number(a.id) - Number(b.id));
+}
+
 function player(value: unknown): PlayerRead | null {
   if (!record(value) || !text(value.id) || !text(value.name) ||
     !uint(value.seat, 7) || typeof value.isBot !== 'boolean' ||
@@ -123,7 +139,7 @@ export function readAuthoritativeState(state: unknown): AuthoritativeRead | null
     const detached = JSON.parse(JSON.stringify(source)) as unknown;
     if (!record(detached) || !uint(detached.tick) ||
       !uint(detached.phase, 2) || !text(detached.matchId) ||
-      !record(detached.players)) return null;
+      !record(detached.players) || readLootState(detached.loot) === null) return null;
     const players: Record<string, PlayerRead> = {};
     for (const [id, raw] of Object.entries(detached.players)) {
       const read = player(raw);
@@ -151,7 +167,7 @@ export function decodeEventBatch(value: unknown): EventBatch | null {
   if (!Array.isArray(value) || value.length < 1 || !uint(value[0])) return null;
   const events: unknown[][] = [];
   for (const entry of value.slice(1)) {
-    if (!Array.isArray(entry) || !uint(entry[0], 30) || entry[0] < 1)
+    if (!Array.isArray(entry) || !uint(entry[0], MAX_EVENT_ID) || entry[0] < 1)
       return null;
     events.push(structuredClone(entry) as unknown[]);
   }

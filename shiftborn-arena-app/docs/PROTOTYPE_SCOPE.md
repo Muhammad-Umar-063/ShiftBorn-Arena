@@ -6,6 +6,8 @@ What the Shiftborn Arena test prototype includes, what it excludes, and what it 
 
 Related: `DECISIONS.md` (D-002, D-022), `docs/GAME_RULES.md`, `docs/PLAYTEST_PLAN.md`, `docs/ACCEPTANCE_TESTS.md`, `TASKS.md`.
 
+**Release request of 2026-10-23.** D-073 to D-082 add ten-minute matches, kill unlocks, the six guns as random loot with ammunition and reloads, the dagger, sprint, pointer-lock controls, the fragile assist, and art and audio integration. They lift the §4 exclusions below only where those decisions say so; everything else in §4 stays excluded. `docs/CHANGE_CONTRACT.md` maps every change.
+
 ---
 
 ## 1. Purpose
@@ -118,7 +120,7 @@ Nothing in this table is built during the prototype. Where it returns is listed 
 |---|---|---|
 | Characters (Volt, Bramble, Nova, Mira, Rook), character kits, signature abilities | Production M2 | Keep abilities data-driven per form so a character can override one |
 | Overdrive meter and Ultimates | Production M2 | Leave an `ultimate` input bit reserved |
-| Weapon crates and the four crate weapons | Production M2 | Leave a `crate` input bit and crate points in the map data |
+| Weapon crates and the four crate weapons (the six form guns are loot under D-075; they are not crates) | Production M2 | Leave a `crate` input bit and crate points in the map data |
 | Bounty and Wanted | Production M2 | Keep KO streaks in match stats |
 | Arena events (Crate Storm, Reactor Surge, Route Closure) | Production M2 | Keep wall data loadable per map state |
 | Hazards, jump pads, raised platforms, grapple anchors | Production M2 or later | Keep the sim 2D with optional height data per wall |

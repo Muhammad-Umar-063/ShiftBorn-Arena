@@ -19,6 +19,9 @@ export function encodeSimEvent(event: SimEvent): EncodedEvent | null {
         event.advancedTicks,
         event.inputSeq,
         event.shotIdx,
+        event.landTick,
+        event.targetX,
+        event.targetY,
       ];
     case 'projectileHit':
       return [
@@ -100,6 +103,34 @@ export function encodeSimEvent(event: SimEvent): EncodedEvent | null {
       return [EventId.ClusterAnnounce, event.pointIndex, event.spawnTick];
     case 'phase':
       return [EventId.Phase, event.phase, event.phaseEndTick];
+    case 'formUnlocked':
+      return [EventId.FormUnlocked, event.seat, event.form];
+    case 'reloadStart':
+      return [EventId.ReloadStart, event.seat, event.gun, event.endTick];
+    case 'reloadEnd':
+      return [EventId.ReloadEnd, event.seat, event.gun, event.completed];
+    case 'weaponSwap':
+      return [EventId.WeaponSwap, event.seat, event.gun, event.readyTick];
+    case 'meleeStart':
+      return [EventId.MeleeStart, event.seat, event.strikeTick, event.endTick];
+    case 'meleeStrike':
+      return [
+        EventId.MeleeStrike,
+        event.seat,
+        event.targetSeat,
+        event.damage,
+        event.tags,
+        event.x2,
+        event.y2,
+      ];
+    case 'projectileBounce':
+      return [EventId.ProjectileBounce, event.id, event.x, event.y, event.angle];
+    case 'mortarBlast':
+      return [EventId.MortarBlast, event.id, event.x, event.y];
+    case 'lootSpawn':
+      return [EventId.LootSpawn, event.lootId, event.gun, event.x, event.y];
+    case 'lootPickup':
+      return [EventId.LootPickup, event.lootId, event.seat, event.gun, event.kind];
     // Internal-only events and future event producers have no complete wire tuple.
     case 'damage':
     case 'score':

@@ -123,7 +123,7 @@ export function createInitialBotIdentities(
 }
 
 export function neutralBotFrame(player: PlayerRecord, seq: number): InputFrame {
-  return {
+  return { aimDist: Math.round(player.aimDistM * 10),
     seq,
     moveX: 0,
     moveY: 0,

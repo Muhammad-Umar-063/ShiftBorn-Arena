@@ -26,11 +26,19 @@ describe('GR-2.2 GR-11.8 shared constants', () => {
       'pulsePistol',
       'scatterCannon',
       'railRepeater',
+      'ricochetDisc',
+      'slugCannon',
+      'arcMortar',
+      'dagger',
     ]);
     expect(Object.values(Cause)).toEqual([
       'pulsePistol',
       'scatterCannon',
       'railRepeater',
+      'ricochetDisc',
+      'slugCannon',
+      'arcMortar',
+      'dagger',
       'ramCharge',
       'railShot',
     ]);

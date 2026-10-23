@@ -98,8 +98,8 @@ describe('T-029 authoritative dev commands', () => {
       good.onMessage(ServerMessageId.Pong, (value: unknown) => goodPongs.push(value));
       const matchId = room.testWorld.matchId;
       const before = hashWorld(room.testWorld);
-      bad.send(ClientMessageId.DevCmd, { cmd: '/flux 0' });
-      await until(() => room.queue(bad.sessionId)?.counters.total === 1);
+      for (const cmd of ['/flux 0', '/give pulsePistol', '/unlock']) bad.send(ClientMessageId.DevCmd, { cmd });
+      await until(() => room.queue(bad.sessionId)?.counters.total === 3);
       expect(hashWorld(room.testWorld)).toBe(before);
       expect(room.pending()).toBe(0);
       room.tick();
@@ -108,7 +108,7 @@ describe('T-029 authoritative dev commands', () => {
       const goodPlayer = room.testWorld.players.find((player) => player?.id === good.sessionId);
       expect(badPlayer?.flux).toBe(goodPlayer?.flux);
       const left = new Promise<number>((resolve) => bad.onLeave(resolve));
-      for (let index = 0; index < 49; index += 1)
+      for (let index = 0; index < 47; index += 1)
         bad.send(ClientMessageId.DevCmd, { cmd: '/endmatch' });
       expect(await left).toBe(CloseCode.InvalidInput);
       expect(badResults).toHaveLength(0);
@@ -169,6 +169,11 @@ describe('T-029 authoritative dev commands', () => {
       expect(firstResults[0]?.ok).toBe(true);
       expect(firstPlayer.flux).toBe(11);
       expect(secondResults).toHaveLength(0);
+      expect((await command('/give pulsePistol'))?.ok).toBe(true);
+      expect(firstPlayer.guns.pulsePistol).toEqual({ owned: true, mag: 20, reserve: 60 });
+      expect(secondPlayer.guns.pulsePistol.owned).toBe(false);
+      expect((await command('/unlock'))?.ok).toBe(true);
+      expect(firstPlayer.unlocked).toEqual({ runner: true, beast: true, turret: true });
       expect((await command('/hp .5'))?.ok).toBe(true);
       expect(firstPlayer.hpFrac).toBe(0.5);
       expect((await command('/form turret'))?.ok).toBe(true);
@@ -202,8 +207,9 @@ describe('T-029 authoritative dev commands', () => {
       expect((await command('/kill'))?.ok).toBe(true);
       expect(firstPlayer.alive).toBe(false);
       expect((await command('/endmatch'))?.ok).toBe(false);
+      const beforeUnknown = firstResults.length;
       first.send(ClientMessageId.DevCmd, { cmd: '/dummies on' });
-      await until(() => firstResults.length >= 13);
+      await until(() => firstResults.length === beforeUnknown + 1);
       expect(firstResults.at(-1)).toEqual({ ok: false, text: 'Unknown command.' });
       first.send(ClientMessageId.DevCmd, { cmd: 7 });
       await until(() => room.queue(first.sessionId)?.counters.total === 1);

@@ -8,7 +8,12 @@ import { describe, expect, it } from 'vitest';
 import { InputQueue } from '../src/net/inputQueue.js';
 
 function frame(seq: number, buttons = 0, moveX = 0, aim = 0): number[] {
-  return [seq, moveX, 0, aim, buttons, ClientAimSourceCode.Mouse];
+  return [seq, moveX, 0, aim, buttons, ClientAimSourceCode.Mouse,
+    120, ...Array(8).fill(0)];
+}
+
+function pad(values: readonly unknown[]): unknown[] {
+  return [...values, 120, ...Array(8).fill(0)];
 }
 
 function packet(...frames: readonly number[][]): number[] {
@@ -75,12 +80,12 @@ describe('T-022 input queue', () => {
       packet(
         frame(6),
         frame(5),
-        [4, 77, -25, 2222, 0, ClientAimSourceCode.Pad],
+        pad([4, 77, -25, 2222, 0, ClientAimSourceCode.Pad]) as number[],
       ),
     );
     queue.consume();
     const result = queue.consume();
-    expect(result.frame).toMatchObject({
+    expect(result.frame).toMatchObject({ aimDist: 120,
       seq: 4,
       moveX: 77,
       moveY: -25,
@@ -90,6 +95,34 @@ describe('T-022 input queue', () => {
     });
     expect(result.pressedButtons).toBe(InputButton.Fire);
     expect(queue.lastHeldButtons).toBe(0);
+  });
+
+  it('D-072 selects ordered intent tags once and ignores stale tags after fallback', () => {
+    const queue = new InputQueue(() => 0);
+    const tagged = (seq: number, intents: readonly number[]) =>
+      [seq, 0, 0, 0, InputButton.Fire, ClientAimSourceCode.Mouse, 120,
+        ...Array.from({ length: 8 }, (_, index) => intents[index] ?? 0)];
+    queue.receive(packet(tagged(3, [1, 3]), tagged(2, [1]), tagged(1, [])));
+    queue.receive(packet(tagged(4, [1, 3]), tagged(3, [1, 3]),
+      tagged(2, [1])));
+    // A four-frame burst consumes 1 and 2 while applying 2.
+    const first = queue.consume().frame!;
+    expect(first.seq).toBe(2);
+    expect(queue.candidateShotIntent(first)).toBe(1);
+    queue.resolveShotIntent(first.seq, 1);
+    expect(queue.candidateShotIntent(first)).toBeNull();
+    const second = queue.consume().frame!;
+    expect(second.seq).toBe(3);
+    expect(queue.candidateShotIntent(second)).toBe(3);
+    queue.resolveShotIntent(second.seq, 3);
+    expect(queue.candidateShotIntent(queue.consume().frame!)).toBeNull();
+
+    queue.receive(tagged(5, []));
+    const fallback = queue.consume().frame!;
+    expect(queue.candidateShotIntent(fallback)).toBeNull();
+    queue.resolveShotIntent(fallback.seq, null);
+    queue.receive(tagged(6, [1, 3]));
+    expect(queue.candidateShotIntent(queue.consume().frame!)).toBeNull();
   });
 
   it('AT-NET-04 accepts 40 of 60 unique frames per second and cannot revive drops', () => {
@@ -123,14 +156,14 @@ describe('T-022 input queue', () => {
       [1.5, 0, 0, 0, 0, 0],
       [1, 128, 0, 0, 0, 0],
       [1, 0, 0, 65536, 0, 0],
-      [1, 0, 0, 0, 256, 0],
+      [1, 0, 0, 0, 1 << 12, 0],
       [1, 0, 0, 0, 0, 5],
       [1, 0, 0, 0, 0, 99],
       ['1', 0, 0, 0, 0, 0],
     ];
-    for (const value of invalid) expect(() => queue.receive(value)).not.toThrow();
+    for (const value of invalid) expect(() => queue.receive(pad(value))).not.toThrow();
     expect(queue.counters.invalidFrame).toBe(invalid.length);
-    const original = packet(frame(2), [1, 0, 0, 0, 256, 0]);
+    const original = packet(frame(2), pad([1, 0, 0, 0, 1 << 12, 0]) as number[]);
     const copy = [...original];
     queue.receive(original);
     expect(original).toEqual(copy);
@@ -177,8 +210,8 @@ describe('T-022 input queue', () => {
 
   it('accepts reserved client bits and Touch/Pad sources without drops', () => {
     const queue = new InputQueue(() => 0);
-    queue.receive([1, 0, 0, 0, InputButton.Crate | InputButton.Ultimate | InputButton.Interact, ClientAimSourceCode.Touch]);
-    queue.receive([2, 0, 0, 0, 0, ClientAimSourceCode.Pad]);
+    queue.receive(pad([1, 0, 0, 0, InputButton.Crate | InputButton.Ultimate | InputButton.Interact, ClientAimSourceCode.Touch]));
+    queue.receive(pad([2, 0, 0, 0, 0, ClientAimSourceCode.Pad]));
     expect(queue.consume().frame?.aimSource).toBe(AimSource.Touch);
     expect(queue.consume().frame?.aimSource).toBe(AimSource.Pad);
     expect(queue.counters.total).toBe(0);

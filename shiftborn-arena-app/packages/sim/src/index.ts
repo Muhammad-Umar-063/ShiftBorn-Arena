@@ -31,6 +31,7 @@ export {
   setAdministrativeFlux,
   setAdministrativeForm,
   setAdministrativeHealth,
+  setAdministrativeUnlockAll,
   stopOrdinaryBots,
 } from './admin.js';
 export { snapshotWorld, restoreWorld, isWorldSnapshot } from './snapshot.js';
@@ -83,6 +84,7 @@ export {
 export type { MorphCompletion, MorphDecision } from './morph.js';
 export { applyDamage } from './damage.js';
 export { counterForm, finalizeDeaths } from './death.js';
+export { applyKillUnlocks, formsUnlockedAt, freshUnlocks } from './progression.js';
 export {
   createDeathDrop,
   deathFluxAmounts,
@@ -115,15 +117,42 @@ export type {
   DamageTarget,
 } from './damageMath.js';
 export {
-  weaponForForm,
-  canFireWeapon,
-  advanceWeaponTimers,
+  advanceGunTimers,
+  advanceShotSequence,
+  advanceTurretHeat,
+  advanceWeaponState,
+  canFireGun,
+  canStartMelee,
+  canStartReload,
+  canSwap,
+  cancelReloadState,
+  railDistanceMul,
   scatterAngles,
   scatterDistanceMul,
-  railDistanceMul,
-  advanceTurretHeat,
 } from './weaponRules.js';
-export type { WeaponAbilityBlock } from './weaponRules.js';
+export type { WeaponAction, WeaponActor } from './weaponRules.js';
+export {
+  cloneGuns,
+  emptyGuns,
+  gunNumbers,
+  meleeActive,
+  noSelection,
+  selectedGun,
+  swapTarget,
+  usableGun,
+  zeroGunTimers,
+} from './loadout.js';
+export type {
+  GunInventory,
+  GunNumbers,
+  GunState,
+  GunTimers,
+  MeleeState,
+  ReloadState,
+  SelectedTiers,
+} from './loadout.js';
+export { resolveMeleeStrike } from './melee.js';
+export { cancelReload, cancelWeaponCommitments } from './weaponEvents.js';
 export {
   spawnProjectile,
   fireProjectiles,
@@ -131,5 +160,9 @@ export {
   advanceAllProjectiles,
   clearProjectiles,
   removeOwnedProjectiles,
+  mortarLandingPoint,
 } from './projectiles.js';
 export * from './ability.js';
+
+export { collectGun, advanceLoot, setupLoot, lootCandidates } from './loot.js';
+export type { LootItem, LootReplenishment } from './loot.js';

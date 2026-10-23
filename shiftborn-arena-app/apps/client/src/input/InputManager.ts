@@ -1,4 +1,4 @@
-import { AimSource, BALANCE, encodeInputPacket,
+import { AimSource, BALANCE, MAX_SHOT_INTENTS_PER_FRAME, encodeInputPacket,
   type ClientInputFrame } from '@shiftborn/shared';
 import type { GroundPoint } from '../render/coordinates.js';
 import { aimFromGround, angleToUint16, pointerGroundPoint,
@@ -26,6 +26,7 @@ export interface InputManagerOptions {
 const PREVENT_DEFAULT_CODES = new Set(['Space', 'ArrowUp', 'ArrowDown',
   'ArrowLeft', 'ArrowRight', 'Tab', 'Backquote']);
 const MAX_SEQUENCE = 0xffffffff;
+const SHOT_INTENT_MS = 500; // NETWORK_PROTOCOL §8.2 confirmation window.
 
 function editable(target: EventTarget | null): boolean {
   return target instanceof HTMLElement &&
@@ -45,12 +46,14 @@ export class InputManager {
   private aimRadians = 0;
   private nextSequence = 1;
   private readonly history: ClientInputFrame[] = [];
+  private readonly shotIntents: Array<{ seq: number; atMs: number }> = [];
   private active = false;
+  private modalOpen = false;
   private disposed = false;
   private latestFrame: ClientInputFrame | null = null;
 
   private readonly keyDown = (event: KeyboardEvent): void => {
-    if (this.disposed || !this.active || editable(event.target) ||
+    if (this.disposed || !this.active || this.modalOpen || editable(event.target) ||
       event.ctrlKey || event.metaKey || event.altKey) return;
     if (PREVENT_DEFAULT_CODES.has(event.code)) event.preventDefault();
     if (event.repeat) return;
@@ -93,9 +96,10 @@ export class InputManager {
     if (this.reticle !== null) this.reticle.hidden = true;
   };
   private readonly pointerDown = (event: PointerEvent): void => {
-    if (!this.active || event.button !== 0) return;
+    if (!this.active || this.modalOpen || event.button !== 0) return;
     event.preventDefault();
-    this.actions.press('fire', 'Mouse0', this.options.fireMode());
+    if (this.actions.press('fire', 'Mouse0', this.options.fireMode()))
+      this.options.onUrgentInput?.();
   };
   private readonly pointerUp = (event: PointerEvent): void => {
     if (event.button === 0) this.actions.release('fire', 'Mouse0');
@@ -121,6 +125,7 @@ export class InputManager {
   attach(canvas: HTMLCanvasElement, stage: HTMLElement): void {
     this.detach();
     this.canvas = canvas; this.stage = stage;
+    canvas.tabIndex = -1;
     canvas.addEventListener('pointermove', this.pointerMove);
     canvas.addEventListener('pointerenter', this.pointerEnter);
     canvas.addEventListener('pointerleave', this.pointerLeave);
@@ -158,7 +163,8 @@ export class InputManager {
   refreshPointerPresentation(): void {
     if (this.canvas === null || this.reticle === null || this.stage === null) return;
     // D-065: FPP mouse aim is disabled pending the OQ-018 control rule.
-    const aiming = this.active && this.pointerOver && this.options.perspective() === 'tpp';
+    const aiming = this.active && !this.modalOpen && this.pointerOver &&
+      this.options.perspective() === 'tpp';
     this.canvas.style.cursor = aiming ? 'none' : '';
     this.reticle.hidden = !aiming;
     if (!aiming) return;
@@ -171,6 +177,15 @@ export class InputManager {
     if (this.disposed) return;
     this.active = active && !document.hidden;
     if (!this.active) this.clearInput();
+  }
+
+  /** Keep sending neutral frames so a lost packet cannot leave server-held fire active. */
+  setModalOpen(open: boolean): void {
+    if (this.disposed) return;
+    this.modalOpen = open;
+    if (open) this.clearInput();
+    this.refreshPointerPresentation();
+    if (open) this.options.onUrgentInput?.();
   }
 
   suspend(): void { this.setActive(false); this.history.length = 0; }
@@ -193,7 +208,8 @@ export class InputManager {
     let distanceM = 0;
     const canvas = this.canvas;
     // D-065: keep the last aim in FPP until the OQ-018 rule is approved.
-    if (this.pointerOver && canvas !== null && this.options.perspective() === 'tpp') {
+    if (!this.modalOpen && this.pointerOver && canvas !== null &&
+      this.options.perspective() === 'tpp') {
       const camera = this.options.camera();
       const point = camera === null ? null : pointerGroundPoint(this.pointerX,
         this.pointerY, canvas.getBoundingClientRect(), camera);
@@ -202,11 +218,15 @@ export class InputManager {
       distanceM = result.distanceM;
     }
     this.options.onAim?.(this.aimRadians, distanceM);
-    const movement = this.actions.sampleMovement();
-    const frame: ClientInputFrame = {
+    this.pruneShotIntents(performance.now());
+    const movement = this.modalOpen ? { moveX: 0, moveY: 0 } :
+      this.actions.sampleMovement();
+    const frame: ClientInputFrame = { aimDist: 120,
       seq: this.nextSequence, ...movement, aim: angleToUint16(this.aimRadians),
-      buttons: this.actions.sampleButtons(this.options.fireMode()),
+      buttons: this.modalOpen ? 0 : this.actions.sampleButtons(this.options.fireMode()),
       aimSource: AimSource.Mouse,
+      ...(this.shotIntents.length > 0
+        ? { shotIntents: this.shotIntents.map((intent) => intent.seq) } : {}),
     };
     const packet = encodeInputPacket([frame, ...this.history.slice(0,
       BALANCE.net.inputRedundancy - 1)]);
@@ -227,9 +247,36 @@ export class InputManager {
   get isActive(): boolean { return this.active; }
   isActionHeld(action: InputAction): boolean { return this.actions.held(action); }
 
+  /** The newly predicted shot is repeated in subsequent input frames until confirmation. */
+  rememberShotIntents(shots: readonly { readonly inputSeq: number }[], atMs: number): void {
+    if (this.disposed || !Number.isFinite(atMs)) return;
+    this.pruneShotIntents(atMs);
+    for (const shot of shots) {
+      if (!Number.isSafeInteger(shot.inputSeq) || shot.inputSeq < 1 ||
+        this.shotIntents.some((intent) => intent.seq === shot.inputSeq)) continue;
+      this.shotIntents.push({ seq: shot.inputSeq, atMs });
+    }
+    while (this.shotIntents.length > MAX_SHOT_INTENTS_PER_FRAME)
+      this.shotIntents.shift();
+  }
+
+  confirmShotIntent(seq: number): void {
+    const index = this.shotIntents.findIndex((intent) => intent.seq === seq);
+    if (index >= 0) this.shotIntents.splice(index, 1);
+  }
+
+  resetShotIntents(): void { this.shotIntents.length = 0; }
+
+  private pruneShotIntents(atMs: number): void {
+    while (this.shotIntents.length > 0 &&
+      atMs - this.shotIntents[0]!.atMs >= SHOT_INTENT_MS)
+      this.shotIntents.shift();
+  }
+
   clearInput(): void {
     this.actions.clear();
     this.history.length = 0;
+    this.shotIntents.length = 0;
     this.pointerOver = false;
     if (this.canvas !== null) this.canvas.style.cursor = '';
     if (this.reticle !== null) this.reticle.hidden = true;
@@ -239,6 +286,7 @@ export class InputManager {
     if (this.disposed) return;
     this.disposed = true;
     this.active = false;
+    this.modalOpen = false;
     this.clearInput();
     this.detach();
     document.removeEventListener('keydown', this.keyDown);

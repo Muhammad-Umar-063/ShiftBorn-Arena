@@ -26,6 +26,7 @@ export interface EntitySnapshot {
   readonly clusters: readonly ClusterVisual[];
   readonly cover: readonly CoverVisual[];
   readonly zoneFrenzy?: boolean;
+  readonly zonePoint?: number | null;
 }
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -76,6 +77,10 @@ export function readEntitySnapshot(state: AuthoritativeRead, localPlayerId: stri
     if (record(value) && typeof value.intact === 'boolean')
       cover.push({ id: definition.id, intact: value.intact, rebuildTick: tick(value.rebuildTick) });
   }
+  const zone = record(state.full.zone) ? state.full.zone : null;
+  const zonePoint = zone?.active === true && typeof zone.point === 'number' &&
+    Number.isInteger(zone.point) && zone.point >= 0 &&
+    zone.point < GREYBOX_V1.zonePoints.length ? zone.point : null;
   return { tick: state.tick, matchId: state.matchId, localPlayerId, players,
-    shards, clusters, cover, zoneFrenzy: state.full.mode === 1 };
+    shards, clusters, cover, zoneFrenzy: state.full.mode === 1, zonePoint };
 }

@@ -7,6 +7,7 @@ import {
   Phase,
   type MorphDenialReason as MorphDenialReasonType,
 } from '@shiftborn/shared';
+import { meleeActive } from './loadout.js';
 import type { Vec2 } from './math/vec2.js';
 import type { PlayerRecord } from './player.js';
 
@@ -53,6 +54,8 @@ export function evaluateMorphRequest(
     | 'knockback'
     | 'ability'
     | 'flux'
+    | 'unlocked'
+    | 'melee'
   >,
   target: Form,
   phase: Phase,
@@ -61,6 +64,9 @@ export function evaluateMorphRequest(
   if (target === player.form) return { kind: 'sameForm' };
   if (phase !== Phase.Playing)
     return { kind: 'denied', reason: MorphDenialReason.Phase };
+  // GR-18.3: a locked form is denied before any transient busy state.
+  if (!player.unlocked[target])
+    return { kind: 'denied', reason: MorphDenialReason.Locked };
   if (!player.alive || player.morph !== null)
     return { kind: 'denied', reason: MorphDenialReason.Busy };
   if (tick < player.morphReadyTick)
@@ -68,7 +74,8 @@ export function evaluateMorphRequest(
   if (
     tick < player.stunEndTick ||
     (player.knockback !== null && tick < player.knockback.endTick) ||
-    player.ability !== null
+    player.ability !== null ||
+    meleeActive(player, tick)
   )
     return { kind: 'denied', reason: MorphDenialReason.Busy };
   const cost = morphCost(target);

@@ -25,7 +25,7 @@ import {
 } from '../src/morph.js';
 import { resetPlayerForMatch } from '../src/player.js';
 import { step } from '../src/step.js';
-import { makeTestWorld } from './fixtures/makeTestWorld.js';
+import { makeTestWorld, tier1Gun } from './fixtures/makeTestWorld.js';
 
 const openMap: MapData = {
   ...GREYBOX_V1,
@@ -37,11 +37,13 @@ const firstSeat = { id: 'first', name: 'First', isBot: false, seat: 0 };
 const secondSeat = { id: 'second', name: 'Second', isBot: false, seat: 1 };
 
 function input(buttons: number, seq: number, moveX = 0): InputFrame {
-  return { seq, moveX, moveY: 0, aim: 0, buttons, aimSource: AimSource.Mouse };
+  return { aimDist: 120, seq, moveX, moveY: 0, aim: 0, buttons, aimSource: AimSource.Mouse };
 }
 
 function playingWorld(players = [firstSeat]) {
-  const world = makeTestWorld({ seed: 14, map: openMap, players });
+  const world = makeTestWorld({
+    seed: 14, map: openMap, players, unlockAllForms: true, armAllGuns: true,
+  });
   world.tick = DERIVED.match.countdownTicks;
   step(world, [], {});
   expect(world.phase).toBe(Phase.Playing);
@@ -233,11 +235,11 @@ describe('GR-5 morphing', () => {
     const { world, player } = playingWorld();
     player.hpFrac = 0.5;
     player.abilityReadyTick = { runner: 23, beast: 456, turret: 789 };
-    player.weapon.runner.nextShotIn = 1.5;
-    player.weapon.beast.nextShotIn = 2.5;
-    player.weapon.turret.nextShotIn = 3.5;
+    player.gunTimers.pulsePistol = 1.5;
+    player.gunTimers.scatterCannon = 2.5;
+    player.gunTimers.railRepeater = 3.5;
     const abilityBefore = structuredClone(player.abilityReadyTick);
-    const weaponsBefore = structuredClone(player.weapon);
+    const weaponsBefore = structuredClone(player.gunTimers);
     step(world, [input(InputButton.MorphBeast, 1, 127)], {});
     expect(player.form).toBe(Form.Runner);
     expect(formStats(player.form).maxHp).toBe(BALANCE.forms.runner.maxHp);
@@ -266,8 +268,8 @@ describe('GR-5 morphing', () => {
     expect(player.hpFrac).toBe(0.5);
     expect(player.abilityReadyTick).toEqual(abilityBefore);
     for (const form of [Form.Runner, Form.Beast, Form.Turret]) {
-      expect(player.weapon[form].nextShotIn).toBeCloseTo(
-        weaponsBefore[form].nextShotIn - 4 * DERIVED.tick.secondsPerTick,
+      expect(player.gunTimers[tier1Gun(form)]).toBeCloseTo(
+        weaponsBefore[tier1Gun(form)] - 4 * DERIVED.tick.secondsPerTick,
         12,
       );
     }
@@ -279,8 +281,8 @@ describe('GR-5 morphing', () => {
     expect(morphKnockbackImmune(player)).toBe(false);
     expect(player.abilityReadyTick).toEqual(abilityBefore);
     for (const form of [Form.Runner, Form.Beast, Form.Turret]) {
-      expect(player.weapon[form].nextShotIn).toBeCloseTo(
-        weaponsBefore[form].nextShotIn - 5 * DERIVED.tick.secondsPerTick,
+      expect(player.gunTimers[tier1Gun(form)]).toBeCloseTo(
+        weaponsBefore[tier1Gun(form)] - 5 * DERIVED.tick.secondsPerTick,
         12,
       );
     }
@@ -640,15 +642,15 @@ describe('GR-5 morphing', () => {
     const { world, player } = playingWorld();
     const morph = { target: Form.Beast, endTick: world.tick + 5 };
     player.morph = morph;
-    player.weapon[Form.Runner].nextShotIn = DERIVED.weapons.pulsePistol.intervalS;
-    const timerBefore = player.weapon[Form.Runner].nextShotIn;
+    player.gunTimers.pulsePistol = DERIVED.weapons.pulsePistol.intervalS;
+    const timerBefore = player.gunTimers.pulsePistol;
     const fluxBefore = player.flux;
     const tickBefore = world.tick;
     const events = [...step(world, [input(InputButton.MorphRunner |
       InputButton.MorphTurret, 1)], {})];
     expect(events.filter((event) => event.type.startsWith('morph'))).toEqual([]);
     expect(player.morph).toEqual(morph);
-    expect(player.weapon[Form.Runner].nextShotIn).toBeLessThan(timerBefore);
+    expect(player.gunTimers.pulsePistol).toBeLessThan(timerBefore);
     expect(player.flux).toBeCloseTo(fluxBefore + DERIVED.flux.regenPerTick, 12);
     expect(world.tick).toBe(tickBefore + 1);
   });

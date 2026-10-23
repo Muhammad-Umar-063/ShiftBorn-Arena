@@ -33,6 +33,9 @@ export const DERIVED = {
     assistWindowTicks: secondsToTicks(BALANCE.match.assistWindowS),
   },
   movement: { accelMpsPerTick: perSecondToPerTick(BALANCE.movement.accelMps2) },
+  sprint: {
+    maxForwardAngleRad: degreesToRadians(BALANCE.sprint.maxForwardAngleDeg),
+  },
   forms: {
     runner: {
       speedMPerTick: perSecondToPerTick(BALANCE.forms.runner.speedMps),
@@ -54,11 +57,36 @@ export const DERIVED = {
     spawnAdvanceMaxTicks: millisecondsToTicks(
       BALANCE.weapons.spawnAdvanceMaxMs,
     ),
+    swapTicks: secondsToTicks(BALANCE.weapons.swapS),
     pulsePistol: {
       intervalS: weaponIntervalS(BALANCE.weapons.pulsePistol.ratePerS),
       projSpeedMPerTick: perSecondToPerTick(
         BALANCE.weapons.pulsePistol.projSpeedMps,
       ),
+      reloadTicks: secondsToTicks(BALANCE.weapons.pulsePistol.reloadS),
+    },
+    ricochetDisc: {
+      intervalS: weaponIntervalS(BALANCE.weapons.ricochetDisc.ratePerS),
+      projSpeedMPerTick: perSecondToPerTick(
+        BALANCE.weapons.ricochetDisc.projSpeedMps,
+      ),
+      reloadTicks: secondsToTicks(BALANCE.weapons.ricochetDisc.reloadS),
+    },
+    slugCannon: {
+      intervalS: weaponIntervalS(BALANCE.weapons.slugCannon.ratePerS),
+      projSpeedMPerTick: perSecondToPerTick(
+        BALANCE.weapons.slugCannon.projSpeedMps,
+      ),
+      reloadTicks: secondsToTicks(BALANCE.weapons.slugCannon.reloadS),
+    },
+    arcMortar: {
+      intervalS: weaponIntervalS(BALANCE.weapons.arcMortar.ratePerS),
+      flightTicks: secondsToTicks(BALANCE.weapons.arcMortar.flightS),
+      reloadTicks: secondsToTicks(BALANCE.weapons.arcMortar.reloadS),
+    },
+    dagger: {
+      windupTicks: secondsToTicks(BALANCE.weapons.dagger.windupS),
+      recoveryTicks: secondsToTicks(BALANCE.weapons.dagger.recoveryS),
     },
     scatterCannon: {
       intervalS: weaponIntervalS(BALANCE.weapons.scatterCannon.ratePerS),
@@ -67,6 +95,7 @@ export const DERIVED = {
       ),
       pelletOffsetsRad:
         BALANCE.weapons.scatterCannon.pelletOffsetsDeg.map(degreesToRadians),
+      reloadTicks: secondsToTicks(BALANCE.weapons.scatterCannon.reloadS),
     },
     railRepeater: {
       intervalS: weaponIntervalS(BALANCE.weapons.railRepeater.ratePerS),
@@ -78,6 +107,7 @@ export const DERIVED = {
       heatCoolPerTick: perSecondToPerTick(
         BALANCE.weapons.railRepeater.heatCoolPerS,
       ),
+      reloadTicks: secondsToTicks(BALANCE.weapons.railRepeater.reloadS),
     },
   },
   abilities: {
@@ -120,18 +150,20 @@ export const DERIVED = {
     previewTicks: secondsToTicks(BALANCE.zoneFrenzy.previewS),
     pointsPerTick: perSecondToPerTick(BALANCE.zoneFrenzy.pointsPerS),
   },
+  loot: { respawnTicks: secondsToTicks(BALANCE.loot.respawnS) },
+  // Client aim models integrate in real seconds, not ticks (D-078, D-079).
   keyboardAim: {
-    turnRadPerTick: degreesToRadians(
-      perSecondToPerTick(BALANCE.keyboardAim.turnDegPerS),
-    ),
+    turnStartRadPerS: degreesToRadians(BALANCE.keyboardAim.turnStartDegPerS),
+    turnMaxRadPerS: degreesToRadians(BALANCE.keyboardAim.turnMaxDegPerS),
+    turnAccelRadPerS2: degreesToRadians(BALANCE.keyboardAim.turnAccelDegPerS2),
   },
-  softLock: {
-    acquireConeRad: degreesToRadians(BALANCE.softLock.acquireConeDeg),
-    trackTurnRadPerTick: degreesToRadians(
-      perSecondToPerTick(BALANCE.softLock.trackTurnDegPerS),
+  aimAssist: {
+    acquireHalfAngleRad: degreesToRadians(
+      BALANCE.aimAssist.acquireHalfAngleDeg,
     ),
-    breakAfterTicks: secondsToTicks(BALANCE.softLock.breakAfterS),
-    releaseHoldTicks: secondsToTicks(BALANCE.softLock.releaseHoldS),
+    retainHalfAngleRad: degreesToRadians(BALANCE.aimAssist.retainHalfAngleDeg),
+    maxCorrectionRad: degreesToRadians(BALANCE.aimAssist.maxCorrectionDeg),
+    pullRadPerS: degreesToRadians(BALANCE.aimAssist.pullDegPerS),
   },
   net: {
     interpDelayTicks: millisecondsToTicks(BALANCE.net.interpDelayMs),

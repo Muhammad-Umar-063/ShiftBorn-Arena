@@ -317,7 +317,8 @@ describe('AT-NET-15 and AT-MATCH-07 late-join boundary', () => {
       expect(player?.alive).toBe(false);
       expect(active.locked).toBe(false);
       expect(active.lockCalls).toBe(0);
-      late.send(ClientMessageId.Input, [1, 127, 0, 0, 1, 0]);
+      late.send(ClientMessageId.Input, [1, 127, 0, 0, 1, 0,
+        120, ...Array(8).fill(0)]);
       await until(() => active.queueFor(late.sessionId)?.lastReceivedSeq === 1);
       active.tick();
       expect(player?.lastInputSeq).toBe(-1);

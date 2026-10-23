@@ -4,6 +4,7 @@ import { hashWorld } from '../src/hash.js';
 import { restoreWorld, snapshotWorld } from '../src/snapshot.js';
 import { spawnProjectile } from '../src/projectiles.js';
 import { createWorld } from '../src/world.js';
+import { tier1Gun } from './fixtures/makeTestWorld.js';
 
 describe('AT-DET-06 pure world snapshot seam', () => {
   it('round-trips gameplay state without sharing mutable records or map data', () => {
@@ -26,7 +27,7 @@ describe('AT-DET-06 pure world snapshot seam', () => {
     expect(snapshot.players[0]?.hpFrac).toBe(original);
     expect(restored.map.walls).toEqual(GREYBOX_V1.walls);
     originalPlayer.pos = { x: 0, y: 4 };
-    expect(spawnProjectile(world, originalPlayer, 0, 1, 0, 0)).not.toBeNull();
+    expect(spawnProjectile(world, originalPlayer, tier1Gun(originalPlayer.form), 0, 1, 0, 0)).not.toBeNull();
     const withProjectile = snapshotWorld(world);
     expect(hashWorld(restoreWorld(withProjectile))).toBe(hashWorld(world));
   });

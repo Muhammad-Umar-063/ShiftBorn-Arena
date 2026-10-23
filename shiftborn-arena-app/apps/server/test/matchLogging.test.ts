@@ -120,6 +120,11 @@ describe('T-028 actual room recorder and replay', () => {
       for (let index = 0; index < DERIVED.net.pingIntervalTicks; index += 1) room.tick();
       expect(room.testWorld.tick).toBe(DERIVED.net.pingIntervalTicks);
       shooter.pos = { x: 0, y: 0 };
+      // D-074 and D-075 are covered by AT-LOAD and AT-LOOT tests; this replay
+      // check needs a Beast morph and a gun.
+      shooter.unlocked.beast = true;
+      shooter.guns.pulsePistol = { owned: true, mag: 20, reserve: 0 };
+      shooter.selectedTier.runner = 1;
       target.pos = { x: 2, y: 0 };
       target.hpFrac = 0.05;
       target.protectedEndTick = 0;
@@ -136,12 +141,14 @@ describe('T-028 actual room recorder and replay', () => {
       client.send(ClientMessageId.ProbeReply, probes[0]);
       await until(() => room.median(client.sessionId) === 200);
       const firingTick = room.testWorld.tick;
-      client.send(ClientMessageId.Input, [1, 0, 0, 0, InputButton.Fire, 0]);
+      client.send(ClientMessageId.Input, [1, 0, 0, 0, InputButton.Fire, 0,
+        120, ...Array(8).fill(0)]);
       await until(() => room.queue(client.sessionId)?.lastReceivedSeq === 1);
       room.tick();
       expect(room.testWorld.events.some((event) => event.type === 'damage')).toBe(true);
       expect(room.testWorld.events.some((event) => event.type === 'death')).toBe(true);
-      client.send(ClientMessageId.Input, [2, 0, 0, 0, InputButton.MorphBeast, 0]);
+      client.send(ClientMessageId.Input, [2, 0, 0, 0, InputButton.MorphBeast, 0,
+        120, ...Array(8).fill(0)]);
       await until(() => room.queue(client.sessionId)?.lastReceivedSeq === 2);
       room.tick();
       expect(room.testWorld.events.some((event) => event.type === 'morphStart')).toBe(true);

@@ -1,8 +1,8 @@
 # CONTROLS_UI.md
 
-> **LLM FILE CONTRACT:** Client interaction source of truth for bindings, aiming, lock-on, HUD, screens, camera, greybox visuals, sound and accessibility. It does not define simulation outcomes.
+> **LLM FILE CONTRACT:** Client interaction source of truth for bindings, aiming, aim assist, HUD, screens, camera, greybox visuals, sound and accessibility. It does not define simulation outcomes.
 
-Controls (mouse and keyboard, keyboard only), aiming behavior including soft lock-on, the HUD, menus and screens, the camera, the greybox visual language, sounds, and input accessibility for the Shiftborn Arena prototype.
+Controls (mouse and keyboard, keyboard only), aiming behavior including the fragile aim assist, the HUD, menus and screens, the camera, the greybox visual language, sounds, and input accessibility for the Shiftborn Arena prototype.
 
 Related: `DECISIONS.md` (D-024, D-037, D-040, D-044, D-045), `docs/GAME_RULES.md`, `docs/NETWORK_PROTOCOL.md` §5.2.
 
@@ -14,7 +14,7 @@ Design rule from the GDD (Pillar 7): every threat, form and objective must be id
 
 | In the prototype | Production only |
 |---|---|
-| Mouse and keyboard; keyboard only with soft lock-on | Touch controls (M2), controller (v1.1) |
+| Mouse and keyboard with pointer lock; keyboard only with the fragile assist (D-078, D-079) | Touch controls (M2), controller (v1.1) |
 | Fixed default bindings | Full key remapping, one-hand preset |
 | Settings in section 6.4 | Colorblind palettes, enemy highlight color picker, subtitles, visual sound indicators |
 | Controls card | Boot Camp tutorial and contextual hints (D-024) |
@@ -27,31 +27,38 @@ Design rule from the GDD (Pillar 7): every threat, form and objective must be id
 
 | Action | Binding |
 |---|---|
-| Move | W A S D |
-| Aim | Mouse cursor in TPP; disabled in FPP until OQ-018 |
+| Move | W A S D relative to facing: W forward, S back, A and D strafe (D-078, GR-4.19) |
+| Sprint | Shift held with forward movement (Shift+W) (GR-4.16) |
+| Turn | Horizontal mouse motion under pointer lock, in TPP and FPP; Left and Right arrows also turn |
+| Aim distance | Vertical mouse motion under pointer lock; Up and Down arrows (GR-4.18) |
 | Fire | Left mouse button (hold); Space also fires |
-| Morph to Runner / Beast / Turret | 1 / 2 / 3 |
+| Morph to Runner / Beast / Turret | 1 / 2 / 3 (locked forms are denied, GR-18.3) |
 | Ability (Dash, Ram Charge, Rail Shot) | E |
+| Reload | R |
+| Swap the current form's guns | Q or mouse wheel |
+| Dagger strike | V |
+| Pick up a gun | Automatic on contact; no key (D-075) |
 | Scoreboard | Tab (hold) |
 | Menu (the match keeps running) | Esc or P |
-| Switch camera view | V (TPP/FPP) |
+| Switch camera view | C (TPP/FPP) |
 | Debug overlay / hitbox view (dev builds) | F3 / F4 |
 | Dev console (only if the server allows cheats) | Backtick |
-| Reserved, do nothing yet | Right mouse (crate weapon), R (crate weapon), X (Ultimate), F (interact), Z (ping), B (emote) |
+| Reserved, do nothing yet | Right mouse (crate weapon), X (Ultimate), F (interact), Z (ping), B (emote) |
 
 ### 2.2 Keyboard only
 
 | Action | Binding |
 |---|---|
-| Move | W A S D |
-| Aim | Arrow keys (section 3.2) |
-| Fire | Space (hold, or toggle in settings) |
+| Move | W A S D relative to facing |
+| Sprint | Shift+W |
+| Turn and aim distance | Left/Right turn, Up/Down change aim distance (section 3.2) |
+| Fire | Space (hold, or toggle in settings); the fragile assist may help (section 3.3) |
 | Morph to Runner / Beast / Turret | 1 / 2 / 3 |
 | Ability | E |
-| Lock target | Q (tap to lock or cycle; hold 0.5 s to release) |
+| Reload, swap, dagger | R, Q, V |
 | Scoreboard | Tab (hold) |
 | Menu | Esc or P |
-| Switch camera view | V (TPP/FPP) |
+| Switch camera view | C (TPP/FPP) |
 | Menus | Arrow keys or W A S D to move focus, Enter or Space to confirm, Esc to go back |
 
 Both schemes work at the same time; nothing needs to be switched in settings.
@@ -63,22 +70,23 @@ Both schemes work at the same time; nothing needs to be switched in settings.
 
 ### 2.4 Scheme detection and glyphs
 
-- The **aim scheme** is whatever produced the most recent aim input: mouse movement over 3 px → `mouse`; an arrow key press → `keys`; an active lock → `lock`. This value is sent as `aimSource` in every input frame.
+- The **aim scheme** is whatever produced the most recent aim input: pointer-locked mouse movement over 3 px → `mouse`; an arrow key press → `keys`; keyboard aim with the assist currently applying an offset → `lock` (wire code 2, now meaning "assist engaged"). This value is sent as `aimSource` in every input frame. It is telemetry only and is never trusted as proof of a player's scheme (D-079).
 - On-screen key glyphs (controls card, HUD hints, ability button label) follow the current scheme: "LMB" or "Space" for fire, for example. Switch instantly.
-- Moving the mouse releases any keyboard lock (section 3.3).
+- Moving the mouse releases the assist (section 3.3).
 
 ### 2.5 Browser input rules
 
-- Call `preventDefault` on Space, arrow keys, Tab and Backtick during gameplay so the page does not scroll or move focus.
+- Call `preventDefault` on Space, arrow keys, Tab, Shift and Backtick during gameplay so the page does not scroll or move focus.
 - Disable the right-click context menu on the game canvas.
 - Esc may only exit fullscreen in some browsers, so P is a second menu key.
 - Never use Ctrl or Cmd shortcuts.
-- On window blur or `visibilitychange`, release every held key and mouse button, so a player does not keep moving or firing.
-- In TPP, hide the system cursor over the canvas and draw the game reticle instead. In FPP, mouse aim is disabled pending the detailed control rule in OQ-018 (D-065), so show the system cursor and hide the aiming reticle. Do not use pointer lock.
+- On window blur, `visibilitychange`, pointer-lock loss and focus moving to a form field, release every held key and mouse button, so a player does not keep moving, sprinting or firing.
+- Request pointer lock on a canvas click during gameplay (D-078). While locked, hide the cursor and draw the reticle at the aim point (aim angle and aim distance). Browsers consume Esc to exit pointer lock without delivering a keydown, so a `pointerlockchange` that loses the lock during gameplay opens the menu exactly as Esc or P would. When the lock is refused or lost, mouse turning stops; keyboard turning still works.
 
 ### 2.6 Input mapper
 
-- All input goes through `InputManager` and a bindings table (`apps/client/src/input/bindings.ts`). Game code reads **actions** (`fire`, `ability`, `morphBeast`, `lockToggle`), never raw key codes. This is what makes remapping, touch and controller possible later.
+- All input goes through `InputManager` and a bindings table (`apps/client/src/input/bindings.ts`). Game code reads **actions** (`fire`, `ability`, `morphBeast`, `reload`, `swap`, `dagger`, `sprint`), never raw key codes. This is what makes remapping, touch and controller possible later.
+- Movement intent (forward, strafe) is converted to the frame's world `moveX`, `moveY` with the shared `encodeFacingMove` using the same aim the frame sends (GR-4.19).
 - **Latching:** an action pressed and released between two 30 Hz ticks is reported as held for one frame (`docs/NETWORK_PROTOCOL.md` §5.2).
 - **Fire mode Toggle:** Space or left mouse toggles the fire state on and off; the frame sends fire held while toggled on.
 
@@ -86,41 +94,35 @@ Both schemes work at the same time; nothing needs to be switched in settings.
 
 ## 3. Aiming
 
-### 3.1 Mouse aim
+### 3.1 Mouse aim (pointer lock, D-078)
 
-- Cast a ray from the camera through the cursor onto the ground plane. Aim angle = direction from the local player's displayed position to that point.
-- If the point is within 0.75 m of the player, keep the previous aim (avoids spinning).
-- The reticle is drawn at the cursor. Its color shows weapon state: normal, cooling down, overheated (Turret), or out of range (dimmed when the cursor is beyond the current weapon's range).
-- The ground-ray cursor rule describes TPP. FPP looks along the player's last aim from eye height. Mouse movement does not change aim in FPP until a detailed rule is approved (D-065, OQ-018); V switches back to TPP for mouse aiming. This interim view is not complete FPP playability.
+- After a canvas click, pointer lock captures the mouse. Horizontal motion turns the aim by `mouseSensitivity × deltaX` radians (a client setting, section 6.4); vertical motion changes the aim distance by `mouseDistanceSensitivity × deltaY` meters, clamped to `aimDistance.minM` to `maxM` (2 to 24 m).
+- TPP and FPP use the same rule; the camera follows the aim in both views.
+- The reticle is drawn at the aim point: the player's displayed position plus the aim direction times the aim distance. Its color shows weapon state: normal, reloading, swapping, empty, overheated (Rail Repeater), or out of range (dimmed when the aim distance exceeds the selected gun's range). With the Arc Mortar selected, the reticle shows the clamped landing point (GR-7.26).
 
-### 3.2 Keyboard aim (arrow keys)
+### 3.2 Keyboard turn and aim distance (arrow keys)
 
-- Arrow keys pick one of 8 directions (single arrows: N, E, S, W; two arrows: diagonals).
-- The aim rotates toward that direction at 720° per second (`keyboardAim.turnDegPerS`) along the shorter way; a Turret is still limited to 120° per second by the sim.
-- Releasing all arrows keeps the current aim.
-- Pressing an arrow while locked releases the lock (section 3.3).
+- Left turns counter-clockwise and Right turns clockwise with the ramped, frame-rate-independent model in `docs/BALANCE.md` §9.6 (`keyboardAim.*`): 90°/s at first, rising to 300°/s after 0.35 s held. Taps give fine steps of a few degrees; holds turn quickly.
+- Holding both Left and Right turns nothing and resets the ramp. Releasing stops turning at once and keeps the aim.
+- Up increases and Down decreases the aim distance at 10 m/s within 2 to 24 m.
+- A Turret is still limited to 120° per second by the sim (GR-4.13).
+- The shared integrators live in `packages/sim` so the client and tests use one implementation.
 
-### 3.3 Soft lock-on (keyboard only)
+### 3.3 Fragile aim assist (keyboard aim only, D-079)
 
-Arrow keys aim in 8 directions, 45° apart, which is too coarse to hit anything in between. Lock-on therefore controls where the player faces, not just a small correction on each shot. It runs on the client and produces normal aim angles (D-037).
+The assist is a small, breakable correction. It runs on the client and produces normal aim angles (D-037). It never affects mouse aiming.
 
-- **Who gets it:** keyboard-only aiming. Lock-on is off while the last aim input was the mouse, and moving the mouse releases any lock. It can be turned off in settings.
-- **Acquire:** Q locks the enemy with the smallest angle from the current aim direction inside a 60° cone (`softLock.acquireConeDeg`, so ±30°), within the current form weapon's range and in line of sight. If none is in the cone, it locks the nearest valid enemy. If there is no valid enemy, nothing happens and the reticle flashes. Spawn-protected enemies can be locked.
-- **Facing:** while locked, the aim turns toward the aim point at up to 720° per second (`softLock.trackTurnDegPerS`); a Turret keeps its 120° per second cap. W A S D keeps full control of movement, so players can strafe while tracking.
-- **Aim point:** the target's predicted position with lead: `aimPoint = targetPos + targetVel × travelTime × leadFactor`, where `travelTime = distance / projectileSpeed` of the current weapon and `leadFactor = softLock.leadFactor × aimAssistStrength` (0.5 at default strength). Use the target's interpolated position and velocity. Moving targets can still dodge; there is no homing once a shot leaves.
-- **Firing:** Space fires along the current aim direction, locked or not.
-- **Manual override:** pressing any arrow key releases the lock and aims in that direction.
-- **Cycling:** tapping Q while locked moves to the next valid target clockwise (by angle around the player) from the current one.
-- **Release:** holding Q for 0.5 s (`softLock.releaseHoldS`) releases the lock.
-- **Breaking:** the lock breaks when the target dies or leaves the match, or stays out of line of sight or out of weapon range for 0.5 s (`softLock.breakAfterS`), and when the player dies. Morphing keeps the lock if the target is within the new form's weapon range. After a break, aim stays where it was; there is no automatic re-lock.
-- **Abilities with lock:** Ram Charge uses the aim at the moment E is pressed, which points at the locked target. Rail Shot keeps tracking during its charge (with the Turret cap). Dash uses movement direction as normal.
-- **Feedback:** the locked target gets a ring and corner brackets that only the locking player sees. A small "LOCK" label sits under the reticle.
+- **Acquire:** only on a fire press (rising edge), and only when the player's **raw** aim (their own keyboard aim, before any assist) is within `aimAssist.acquireHalfAngleDeg` (5°) of the bearing to an eligible enemy: alive, not spawn-protected, within the selected weapon's range (dagger reach for the dagger) and in line of sight through walls and intact cover. The smallest angle wins, then the shorter distance, then the lower seat. Held fire never acquires.
+- **Effect:** the sent aim is `raw + offset`. The offset moves toward `clamp(bearing − raw, ±maxCorrection)` at `aimAssist.pullDegPerS` (40°/s), where `maxCorrection = aimAssist.maxCorrectionDeg` (3°) × strength. The bearing uses the target's interpolated position with no lead.
+- **Retention:** the assist stays engaged while fire is held, the target stays eligible, and the raw aim stays within `aimAssist.retainHalfAngleDeg` (7°) of the bearing. Retention is measured from raw aim, never from the assisted aim, so a target moving away breaks it unless the player turns manually.
+- **Break and release:** on any failed condition, the target is forgotten and the offset decays to 0 at 40°/s (no snap). The same target cannot be acquired again for `aimAssist.reacquireDelayS` (0.75 s), and nothing is acquired again without a new fire press.
+- **Never:** target cycling, lead, autonomous tracking, homing projectiles, wider hitboxes or extra damage.
+- **Feedback:** a small "ASSIST" mark under the reticle while the offset is not 0. No target ring.
 
 ### 3.4 Aim assist and fairness
 
-- Aim assist strength (settings, 0 to 100%, default 100%) scales the lead factor from 0 to 0.5. At 0% the lock still tracks the target's current position, without lead.
-- Aim assist never affects mouse aiming.
-- The fairness test (H9, `docs/PLAYTEST_PLAN.md` §4.4) tunes `softLock.leadFactor` until keyboard-only hit rate is within 10% of mouse hit rate.
+- Assist strength (settings, 0 to 100%, default 100%) scales `maxCorrection` from 0 to 3°. At 0% the assist does nothing.
+- The fairness test (H9, `docs/PLAYTEST_PLAN.md` §4.4) compares keyboard and mouse hit rates. Levers, in order: `aimAssist.maxCorrectionDeg`, then `acquireHalfAngleDeg`, within BALANCE ranges. `aimSource` is recorded for analysis but never treated as proof of honesty.
 
 ---
 
@@ -166,7 +168,11 @@ Layout at 1280 x 720 (scale with the window; minimum text 14 px at 1280 x 720 an
 | Mode and score | Top-center, under the timer | "Frenzy" or "Zone Frenzy"; your rank and score ("2nd · 5 KOs" or "2nd · 31 pts"). |
 | Kill feed | Top-left | Last 5 entries, 5 s each: killer name, cause icon, victim name; your name highlighted; EFFECTIVE icon if the killing hit was effective. |
 | Minimap | Top-right | Section 5.1. |
-| Reticle | At the cursor (mouse) or in front of the player (keyboard) | State colors (section 3.1); "LOCK" label when locked. |
+| Reticle | At the aim point (aim angle and aim distance) | State colors (section 3.1); "ASSIST" mark while the assist applies an offset. |
+| Weapon panel | Bottom-right, beside the ability button | Selected gun name and tier ("T1" or "T2"), `mag / reserve`, reload progress from `reloadEndTick`, swap state, and the other gun of the form if owned. "DAGGER" when the form has no usable gun. |
+| Inventory strip | Above the form buttons | Six small slots (two per form) showing owned guns and their ammunition; slots of locked forms show a lock and the KO progress ("Beast 2/3", "Turret 4/6"). |
+| Unlock toast | Center | "Beast unlocked" or "Turret unlocked" on `formUnlocked` for the local player. |
+| Loot | World | Each gun item at its exact schema position with its icon and tier; pickup feedback from `lootPickup`. |
 | Hit marker | On the reticle | Short X on each confirmed hit; bigger on a KO. |
 | Damage numbers | World space above the target | `round(damage)`. EFFECTIVE: yellow-green with the word EFFECTIVE. RESISTED: grey with the word RESISTED. ARMOR: a small shield icon. Can be turned off. |
 | Damage taken | Screen edge | Red wedge pointing toward the attacker for 1 s. |
@@ -222,7 +228,7 @@ All screens are DOM over the canvas (D-040), fully usable by keyboard only, mous
 ### 6.3 Controls card
 
 - Shown automatically at the start of the first match of a session (during COUNTDOWN), dismissed by any key or click, and auto-hidden at GO. Also available from the menu and the landing screen.
-- Content, using the current scheme's glyphs: Move; Aim; Fire; Morph 1 Runner (free), 2 Beast (35 Flux), 3 Turret (35 Flux); Ability E; Lock Q (keyboard); Scoreboard Tab; Menu Esc.
+- Content, using the current scheme's glyphs: Move (facing-relative); Sprint Shift+W; Turn and aim distance; Fire; Reload R; Swap Q; Dagger V; Morph 1 Runner (free), 2 Beast (35 Flux, unlocks at 3 KOs), 3 Turret (35 Flux, unlocks at 6 KOs); Ability E; Scoreboard Tab; Camera C; Menu Esc. One line: "Guns are on the map. Walk over them to pick them up."
 - One line about the forms: "Each form beats one other form. Watch for EFFECTIVE and RESISTED hits." It does not say which form beats which (H5 measures whether players learn it).
 
 ### 6.4 Settings (B8)
@@ -231,8 +237,10 @@ Saved in `localStorage` with every read and write wrapped in try/catch; the game
 
 | Setting | Values | Default |
 |---|---|---|
-| Aim assist strength (keyboard lock) | 0 to 100% | 100% |
-| Keyboard lock-on | On, Off | On |
+| Aim assist strength (keyboard aim) | 0 to 100% | 100% |
+| Keyboard aim assist | On, Off | On |
+| Mouse turn sensitivity | 0.1 to 5 mrad per pixel | 2.5 |
+| Mouse aim-distance sensitivity | 0.005 to 0.1 m per pixel | 0.03 |
 | Fire mode | Hold, Toggle | Hold |
 | Camera view | TPP, FPP | TPP |
 | Master volume | 0 to 100 | 80 |
@@ -245,7 +253,7 @@ Saved in `localStorage` with every read and write wrapped in try/catch; the game
 
 ### 6.5 In-match menu (Esc or P)
 
-The match keeps running; a proxy bot does **not** take over while the menu is open (the player is still present). Items: Resume, Settings, Controls, Room (code and "Copy link" for code rooms), Host settings (host only), Leave match. The tester code is shown at the bottom ("Tester code: K7Q2MX").
+The match keeps running (D-080). Opening the menu, or losing pointer lock, sends neutral input (no movement, sprint, fire, reload, swap, dagger, ability or morph; aim unchanged) and clears held input. The player can still be damaged and killed. Opening the menu never triggers a proxy by itself, but the ordinary AFK rule (`NETWORK_PROTOCOL.md` §9.4) still applies to a player who stays in it, exactly as for any other idle player. Items: Resume, Settings, Controls, Room (code and "Copy link" for code rooms), Host settings (host only), Leave match. The tester code is shown at the bottom ("Tester code: K7Q2MX").
 
 ### 6.6 Host settings (code rooms)
 
@@ -265,7 +273,7 @@ For late joiners in a code room with 60 s or less left: "Match in progress. You 
 
 ## 7. Camera
 
-- Two local presentation views: **TPP** follows behind and above the player in the aim direction; **FPP** is at the player's eye height and looks along the aim. TPP is the saved default. V or the in-match View button switches between them. The server's movement, aim and hit rules do not change.
+- Two local presentation views: **TPP** follows behind and above the player in the aim direction; **FPP** is at the player's eye height and looks along the aim. TPP is the saved default. C or the in-match View button switches between them (D-078). The server's movement, aim and hit rules do not change.
 - Until T-033 supplies form silhouettes, TPP shows a neutral local greybox body. FPP hides the local body to keep the eye view clear.
 - TPP has a 55° vertical field of view. The camera follows 4 m behind and 2.8 m above the player at Runner zoom, looks toward a point ahead, and moves toward the player if a wall or intact cover would contain it. Aim lead shifts the look target by up to one third of the smoothed lead. FPP sits 1.6 m above the player's ground point with a 65° vertical field of view at Runner zoom and a horizontal look direction.
 - Form zoom uses `forms.<form>.cameraZoom` (1.0 Runner, 0.9 Beast, 1.3 Turret). TPP scales follow distance and height. FPP divides its field of view by zoom. Form zoom changes over 0.3 s. Switching TPP/FPP is immediate.
@@ -338,7 +346,7 @@ Volume groups: master, effects, interface.
 ## 10. Accessibility in the prototype
 
 - Every gameplay feature and every menu works with keyboard only.
-- Fire Hold or Toggle; aim assist strength; lock-on on or off.
+- Fire Hold or Toggle; aim assist strength; keyboard aim assist on or off; mouse sensitivities.
 - Screen shake off; reduced motion; damage numbers off.
 - No information by color alone (section 8 pairs every color with a shape or label).
 - Text sizes: minimum 14 px at 1280 x 720, 12 px at 821 x 462.

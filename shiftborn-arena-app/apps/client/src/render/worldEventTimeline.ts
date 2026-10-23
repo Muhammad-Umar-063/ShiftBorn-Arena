@@ -92,7 +92,8 @@ export class WorldEventTimeline {
     return frame?.id ?? null;
   }
 
-  ingest(batch: EventBatch, localId: string): LocalFeedback[] {
+  ingest(batch: EventBatch, localId: string,
+    onQueued?: (delivery: WorldDelivery) => void): LocalFeedback[] {
     if (!Number.isSafeInteger(batch.tick) || batch.tick < 0) return [];
     this.newestTick = Math.max(this.newestTick, batch.tick);
     const valid = batch.events.flatMap((event) => {
@@ -126,6 +127,7 @@ export class WorldEventTimeline {
       const insertAt = this.queue.findIndex((queued) => queued.tick > batch.tick);
       if (insertAt < 0) this.queue.push(delivery);
       else this.queue.splice(insertAt, 0, delivery);
+      onQueued?.(delivery);
       if (event[0] === EventId.ProjectileHit) {
         if (actorId === localId) immediate.push({ kind: 'damageTaken',
           tick: batch.tick, projectileId: event[1], ownerId: projectileOwnerId,

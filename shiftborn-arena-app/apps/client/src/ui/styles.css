@@ -319,6 +319,44 @@ button:disabled {
 .radio-label input { accent-color: var(--accent); }
 .settings-frame > .button { justify-self: start; min-width: 135px; }
 
+.debug-overlay {
+  position: absolute;
+  z-index: 15;
+  left: 12px;
+  top: 12px;
+  max-width: min(440px, calc(100% - 24px));
+  padding: 10px 12px;
+  border: 1px solid #82b6a4;
+  background: #08151ce6;
+  color: #d8ffdb;
+  font: 12px/1.45 ui-monospace, monospace;
+  white-space: pre-line;
+  pointer-events: none;
+}
+
+.dev-console {
+  position: absolute;
+  z-index: 20;
+  left: 12px;
+  right: 12px;
+  bottom: 12px;
+  max-width: 760px;
+  padding: 10px;
+  border: 1px solid #86e6b5;
+  background: #071219f2;
+  box-shadow: 5px 5px 0 #0008;
+  color: #e6f9e7;
+  font: 13px/1.4 ui-monospace, monospace;
+}
+
+.dev-console-output { max-height: 180px; overflow-y: auto; white-space: pre-wrap; overflow-wrap: anywhere; }
+.dev-console-output p { margin: 0 0 4px; }
+.dev-console-error { color: #ffd0c7; }
+.dev-console-command { color: #a9ecc8; }
+.dev-console-input { width: 100%; margin-top: 8px; padding: 8px; border: 1px solid #6baf90; border-radius: 0; background: #14272b; color: inherit; font: inherit; }
+
+.debug-overlay[hidden], .dev-console[hidden] { display: none; }
+
 @media (max-width: 700px) {
   .landing-screen .arena-frame { grid-template-columns: minmax(0, 1fr); }
   .utility-actions, .form-stripe, .screen-footer { grid-column: 1; }

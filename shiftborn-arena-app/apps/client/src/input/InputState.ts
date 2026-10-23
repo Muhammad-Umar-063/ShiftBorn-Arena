@@ -2,6 +2,7 @@ import { InputButton } from '@shiftborn/shared';
 import type { InputAction } from './bindings.js';
 
 const BUTTON_ACTIONS = {
+  reload: InputButton.Reload, swap: InputButton.Swap, dagger: InputButton.Dagger, sprint: InputButton.Sprint,
   fire: InputButton.Fire, ability: InputButton.Ability,
   morphRunner: InputButton.MorphRunner, morphBeast: InputButton.MorphBeast,
   morphTurret: InputButton.MorphTurret,

@@ -26,7 +26,7 @@ All message names, numeric type ids and encodings live in `packages/shared/src/p
 - **Transport:** Colyseus over WebSocket. `ws://` locally, `wss://` in the playtest deployment (Caddy terminates TLS).
 - **State:** `@colyseus/schema` binary delta patches.
 - **Messages:** Colyseus messages with numeric type ids (smaller than strings), payloads encoded by Colyseus (msgpack). Payloads are flat arrays where noted, to keep them small.
-- **Protocol version:** `PROTOCOL_VERSION = 2` in `protocol.ts` (D-071 Schema extension). Bump it on any later change to messages, schema or input encoding. The client sends it in the join options; the server rejects a mismatch with close code 4000 and the client shows "A new version is available. Reload."
+- **Protocol version:** `PROTOCOL_VERSION = 5` in `protocol.ts` (the 2026-10-23 release state, `docs/CHANGE_CONTRACT.md` §7; T-038's trusted `welcome.devCheatsEnabled`, D-072's input frame extension and D-071's Schema fields remain). Version 5 lands in stages T-045 to T-049 and T-057; this document lists what has landed. Bump it on any later change to messages, schema or input encoding. The client sends it in the join options; the server rejects a mismatch with close code 4000 and the client shows "A new version is available. Reload."
 - **Balance check:** the `welcome` message carries `balanceVersion` and `balanceHash` (a stable hash of the `BALANCE` object). If the client's hash differs, it shows the same reload prompt. Prediction with different numbers would cause constant corrections.
 
 ---
@@ -112,6 +112,7 @@ PlayerState
   x, y, vx, vy: float32
   aim: float32                 radians
   form: uint8                  0 runner, 1 beast, 2 turret
+  unlockedMask: uint8          GR-18.2: bit 0 Runner (always set), bit 1 Beast, bit 2 Turret
   morphTarget: int8            -1 none
   morphEndTick: uint32
   morphReadyTick: uint32
@@ -162,7 +163,7 @@ Bot difficulty uses D-063 codes in both existing fields: 0 Easy, 1 Normal, 2 Har
 | 5 | `devCmd` | client → server | `{ cmd: string }` | Only accepted with `DEV_CHEATS=1` |
 | 6 | `clientStats` | client → server | `{ fpsMedian, fpsP5, rttMs, corrections, inputScheme, windowW, windowH, browser, hiddenMs, errors }` (`errors` = uncaught client errors and WebGL context losses since the last report) | Every 30 s |
 | 7 | `probeReply` | client → server | `[serverTimeMs]` echoed | On `probe` |
-| 100 | `welcome` | server → client | `{ protocolVersion, buildId, playerId, seat, isHost, roomCode, mapId, balanceVersion, balanceHash, serverTick, tickRate, patchRate, testerCode }` | After join and after reconnect |
+| 100 | `welcome` | server → client | `{ protocolVersion, buildId, playerId, seat, isHost, roomCode, mapId, balanceVersion, balanceHash, serverTick, tickRate, patchRate, devCheatsEnabled, testerCode }` | After join and after reconnect; `devCheatsEnabled` comes only from trusted server config |
 | 101 | `pong` | server → client | `[clientTimeMs, serverTick, serverTimeMs]` | On `ping` |
 | 102 | `ev` | server → client | `[tick, ...events]` (§5.3) | Ticks with events |
 | 103 | `probe` | server → client | `[serverTimeMs]` | Every 2 s |
@@ -182,6 +183,8 @@ One frame per client tick:
 | `aim` | uint16 | 0 to 65535 | Aim angle = `aim / 65536 × 2π` |
 | `buttons` | uint16 | bitmask | Below |
 | `aimSource` | uint8 | 0 mouse, 1 keys, 2 lock, 3 touch (reserved), 4 pad (reserved) | Telemetry and validation |
+| `aimDist` | uint8 | 0 to 255, tenths of a meter; sim clamps to BALANCE aim-distance limits | Mortar target distance |
+| `intent0` through `intent7` | eight uint32 slots | zero padding or strictly ascending prior shot sequences | D-072 predicted shot identity, repeated until acknowledgement or 500 ms |
 
 Buttons (held state, not edges):
 
@@ -195,13 +198,17 @@ Buttons (held state, not edges):
 | 5 | crate (reserved, ignored) |
 | 6 | ultimate (reserved, ignored) |
 | 7 | interact (reserved, ignored) |
-| 8 to 15 | unused, must be 0 |
+| 8 | reload (edge) |
+| 9 | sprint (held) |
+| 10 | swap (edge) |
+| 11 | dagger (edge) |
+| 12 to 15 | unused, must be 0 |
 
 **Latching.** A key pressed and released between two client ticks is still reported as held in the next frame, so a quick tap is never lost.
 
-**Packet.** `input` payload = the newest frame followed by up to 2 previous frames, flattened: `[seq, moveX, moveY, aim, buttons, aimSource, seq-1, ..., seq-2, ...]` (6, 12 or 18 numbers).
+**Packet (D-072).** `input` payload = the newest frame followed by up to 2 previous frames, flattened. Each protocol v5 frame has 15 numbers: `[seq, moveX, moveY, aim, buttons, aimSource, aimDist, intent0, ..., intent7]` (15, 30 or 45 numbers per packet). Each nonzero intent is a predicted firing frame sequence. Intents are strictly increasing, no newer than this frame, within 1000 sequence numbers, and followed only by zero padding. The client repeats its ordered, unacknowledged intents in later redundant frames for the existing 500 ms local confirmation window. The current frame is sent before its own prediction is known, so its first intent appears in a subsequent frame; an immediate server shot without that intent uses the frame sequence and still matches.
 
-**Validation** (server, per frame): integers in range, `seq` within 1000 of the last received, `aimSource` known, unused bits 0. A frame that fails is dropped. 50 dropped frames within 10 s closes the connection with 4003.
+**Validation** (server, per frame): integers in range, `seq` within 1000 of the last received, `aimSource` known, unused bits 0, and at most eight valid ordered intent sequences as above. A frame that fails is dropped. 50 dropped frames within 10 s closes the connection with 4003.
 
 ### 5.3 Events
 
@@ -209,14 +216,14 @@ Buttons (held state, not edges):
 
 | Id | Event | Payload |
 |---|---|---|
-| 1 | `projectileSpawn` | id, ownerSeat, weapon, x, y, angle, spawnTick, advancedTicks, inputSeq, shotIdx |
+| 1 | `projectileSpawn` | id, ownerSeat, weapon (gun id), x, y, angle, spawnTick, advancedTicks, inputSeq, shotIdx, landTick, targetX, targetY (the last three are 0 except for the Arc Mortar, GR-7.27) |
 | 2 | `projectileHit` | id, targetSeat, damage, tags bitmask (1 EFFECTIVE, 2 RESISTED, 4 ARMOR), x, y |
 | 3 | `projectileImpact` | id, x, y |
 | 4 | `projectileExpire` | id |
 | 5 | `blocked` | id, targetSeat |
 | 6 | `morphStart` | seat, from, to, endTick |
 | 7 | `morphEnd` | seat, form |
-| 8 | `morphDenied` | seat, target, reason (0 cooldown, 1 flux, 2 busy, 3 phase) |
+| 8 | `morphDenied` | seat, target, reason (0 cooldown, 1 flux, 2 busy, 3 phase, 4 locked) |
 | 9 | `abilityStart` | seat, ability, startTick, endTick, dirX, dirY |
 | 10 | `abilityEnd` | seat, ability, cancelled (0 or 1) |
 | 11 | `abilityHit` | seat, ability, targetSeat, damage, tags |
@@ -239,10 +246,20 @@ Buttons (held state, not edges):
 | 28 | `phase` | phase, phaseEndTick |
 | 29 | `matchEnd` | ranking (seat list) |
 | 30 | `botReplaced` | seat, newPlayerId |
+| 31 | `projectileBounce` | id, x, y, angle (Ricochet Disc, GR-7.22) |
+| 32 | `mortarBlast` | id, x, y (Arc Mortar landing, GR-7.28; `projectileHit` events for the same id follow) |
+| 33 | `reloadStart` | seat, gun, endTick |
+| 34 | `reloadEnd` | seat, gun, completed (0 cancelled, 1 completed) |
+| 35 | `weaponSwap` | seat, gun, readyTick |
+| 36 | `meleeStart` | seat, strikeTick, endTick |
+| 37 | `meleeStrike` | seat, targetSeat (-1 miss), damage, tags, x2, y2 (segment end) |
+| 38 | `formUnlocked` | seat, form |
+| 39 | `lootSpawn` | lootId, gun, x, y |
+| 40 | `lootPickup` | lootId, seat, gun, kind (0 new gun, 1 ammunition) |
 
 Most of these duplicate state that also arrives in patches (for example shard lists). The event exists so the client can play effects and sounds at the right moment. **State is the truth; events are for presentation**, except projectile events, which exist only as events (D-034).
 
-**Projectile shot index (D-069).** `shotIdx` starts at zero for the first shot tagged with a new accepted `inputSeq` and increases in firing order. Repeating a held frame with the same sequence on later simulation ticks continues its index. Scatter pellets consume consecutive indexes in fixed pattern order. A different accepted input sequence starts a new index stream when its first shot fires. D-069 did not change the `(inputSeq, shotIdx)` event fields. D-071 later bumped the protocol version for prediction restoration fields.
+**Projectile shot index (D-069/D-072).** `shotIdx` starts at zero for the first shot tagged with a new selected sequence and increases in firing order. Repeating the same selected sequence on later simulation ticks continues its index. Scatter pellets consume consecutive indexes in fixed pattern order. A different selected sequence starts a new index stream when its first shot fires. D-072 permits a human shot's selected sequence to be a carried predicted intent instead of the applied frame sequence; absent an eligible intent, the applied sequence remains the fallback. The `(inputSeq, shotIdx)` event fields and exact client matching remain.
 
 ### 5.4 Server input processing
 
@@ -260,6 +277,8 @@ Each tick, for each human seat:
 If two or more distinct morph-target rising edges land in one simulation tick, including a two-frame catch-up union, the sim ignores those morph requests (D-064). A target held before that tick is not a new edge. Other input and held-button history continue.
 5. Set `lastInputSeq` to the newest consumed `seq`.
 
+For an actual human shot only, select the oldest intent on the applied frame that is newer than this seat's last resolved shot-intent sequence and no newer than the applied frame. The server keeps the newer frame's movement, aim and held fire. A selected intent supplies the projectile `inputSeq`; if there is none, the applied frame sequence supplies it. Resolve a tag only after a projectile spawns. A fallback shot resolves through its applied sequence so an older intent cannot later attach to an unrelated shot. A shot-free tick leaves pending intents eligible. Duplicate or repeated frames cannot reuse a resolved tag. Clear pending intent history on input suspension and seat/session replacement. This presentation identity does not alter fire eligibility, fire timing, damage or collision (D-072).
+
 Bot and proxy seats get their frame from the bot controller (`docs/BOT_SPEC.md`), built the same way.
 
 Rate limit: more than 40 frames per second (`net.maxInputsPerS`) over a 1 s window are dropped and counted.
@@ -276,6 +295,7 @@ Each client tick:
 2. Store it in `pending` (frames not yet acknowledged).
 3. Run `predictStep` (`docs/ARCHITECTURE.md` §4.6) on the predicted local state.
 4. If the predicted fire timer fires, spawn a **local shot** visual tagged `(seq, shotIdx)` (§8.2).
+5. Retain that predicted sequence as an unacknowledged shot intent in following input frames until its own spawn confirmation, the §8.2 500 ms limit, or a lifecycle reset. The server may confirm this exact tag even when catch-up applies a later frame (D-072).
 
 What is predicted: position, velocity, aim (with the Turret cap), morph start and end (if the last known Flux covers the cost and the cooldown is ready), Dash movement, Ram Charge windup and movement (stopping at walls and cover only), Rail Shot charge visuals, cooldown timers, fire timers and heat.
 
@@ -442,6 +462,7 @@ Measure actual numbers with server byte counters in the soak test and record the
 - Unknown message ids are dropped and counted.
 - Maximum WebSocket message size: 4 KB.
 - `hostSettings` from a non-host is dropped. `devCmd` is dropped unless `DEV_CHEATS=1`.
+- The client treats only the validated `welcome.devCheatsEnabled` from the current open session as permission to open or send from the dev console. It never probes with a command. Losing the session removes that permission until a new Welcome passes validation. The server still authorizes each `devCmd` independently.
 - `clientStats` values are clamped and treated as informational only.
 - 50 dropped or invalid messages within 10 s closes the connection (4003).
 
@@ -461,3 +482,5 @@ Recent Colyseus versions provide `setFixedTimestep`, `defineInput` (per-client i
 | Measured quality | At 150 ms added RTT: fewer than 1 correction over 0.5 m per player-minute while walking, dashing and morphing |
 
 Record the result in `DECISIONS.md` as D-061: "Colyseus helpers" (list which ones) or "custom implementation". Either path must implement every behavior in this document.
+
+**T-057 wire layout correction (2026-10-23):** Colyseus 5.0.40 limits a Schema object to 63 fields. PlayerState stores the new fields as `locomotion: LocomotionState { aimDist: uint8, sprinting: boolean }`. Input `aimDist` remains the seventh number in each 15-number frame. All consumers restore these fields from `locomotion` before replay. This is the finalized protocol v5 layout; all earlier flat-field descriptions refer to the same logical state.

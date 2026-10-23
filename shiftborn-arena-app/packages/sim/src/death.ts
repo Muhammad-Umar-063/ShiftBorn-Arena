@@ -4,6 +4,8 @@ import { cancelAbility } from './ability.js';
 import { createDeathDrop, deathFluxAmounts } from './deathDrops.js';
 import { gainFlux } from './flux.js';
 import { cancelMorphOnDeath } from './morph.js';
+import { applyKillUnlocks } from './progression.js';
+import { cancelWeaponCommitments } from './weaponEvents.js';
 import type { World } from './world.js';
 
 /** Captured at the first lethal hit; later state changes cannot rewrite credit. */
@@ -48,13 +50,19 @@ export function finalizeDeaths(world: World): void {
       continue;
     cancelMorphOnDeath(victim);
     cancelAbility(world, victim, death.deathTick);
+    // GR-11.3, D-076: nothing moves; owned guns and ammunition stay exact.
+    cancelWeaponCommitments(world, victim);
     victim.knockback = null;
     victim.stunEndTick = world.tick;
     victim.stats.deaths += 1;
     const killer = world.players.find(
       (player) => player?.id === death.killerId,
     );
-    if (killer !== undefined && killer !== null) killer.stats.kos += 1;
+    if (killer !== undefined && killer !== null) {
+      killer.stats.kos += 1;
+      // GR-18.2: only this credited KO path advances progress.
+      applyKillUnlocks(world, killer);
+    }
 
     const eligibleIds = new Set(
       victim.damageLog

@@ -38,6 +38,16 @@ const eventNames = [
   'score',
   'matchEnd',
   'positionClamped',
+  'formUnlocked',
+  'reloadStart',
+  'reloadEnd',
+  'weaponSwap',
+  'meleeStart',
+  'meleeStrike',
+  'projectileBounce',
+  'mortarBlast',
+  'lootSpawn',
+  'lootPickup',
 ] as const;
 
 describe('GR-17 sim events', () => {
@@ -48,6 +58,8 @@ describe('GR-17 sim events', () => {
       roomSeed: 1,
       mode: Mode.Frenzy,
     });
+    // Match creation now emits GR-19.5 loot spawns; this test isolates emitEvent.
+    world.events.length = 0;
     // Each literal name is a valid discriminant; the loop widens it to their union.
     for (const type of eventNames) emitEvent(world, { type } as SimEvent);
     expect(world.events.map((event) => event.type)).toEqual(eventNames);
@@ -81,7 +93,7 @@ describe('GR-15 tick skeleton', () => {
       roomSeed: 1,
       mode: Mode.Frenzy,
     });
-    const input: InputFrame = {
+    const input: InputFrame = { aimDist: 120,
       seq: 0,
       moveX: 0,
       moveY: 0,

@@ -50,6 +50,8 @@ function setup(map: MapData = openMap, withEnemy = false) {
     seed: 19,
     map,
     players: withEnemy ? [first, second] : [first],
+    unlockAllForms: true,
+    armAllGuns: true,
   });
   world.phase = Phase.Playing;
   world.phaseEndTick = 5000;
@@ -68,7 +70,7 @@ function frame(
   moveY = 0,
   aim = 0,
 ): InputFrame {
-  return {
+  return { aimDist: 120,
     seq: worldTick + 1,
     buttons,
     moveX,

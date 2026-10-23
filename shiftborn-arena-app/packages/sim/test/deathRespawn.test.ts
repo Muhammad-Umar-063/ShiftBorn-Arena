@@ -24,7 +24,7 @@ import { advanceAllProjectiles, spawnProjectile } from '../src/projectiles.js';
 import { respawnDuePlayers, respawnPlayer } from '../src/respawn.js';
 import { step } from '../src/step.js';
 import type { PlayerRecord, World } from '../src/world.js';
-import { makeTestWorld } from './fixtures/makeTestWorld.js';
+import { makeTestWorld, tier1Gun } from './fixtures/makeTestWorld.js';
 import { TEST_OPEN } from './fixtures/testOpen.js';
 
 const map: MapData = { ...TEST_OPEN, spawnPoints: GREYBOX_V1.spawnPoints };
@@ -86,7 +86,7 @@ function lethal(
 }
 
 function frame(seq: number, buttons = 0): InputFrame {
-  return {
+  return { aimDist: 120,
     seq,
     moveX: 0,
     moveY: 0,
@@ -188,9 +188,9 @@ describe('T-017 death, credit, respawn and protection', () => {
     first.hpFrac = second.hpFrac = 1e-3;
     first.aim = 0;
     second.aim = Math.PI;
-    expect(spawnProjectile(world, first, 0, 1, 0, 0)).not.toBeNull();
-    expect(spawnProjectile(world, second, Math.PI, 1, 0, 0)).not.toBeNull();
-    expect(spawnProjectile(world, first, 0, 1, 1, 0)).not.toBeNull();
+    expect(spawnProjectile(world, first, tier1Gun(first.form), 0, 1, 0, 0)).not.toBeNull();
+    expect(spawnProjectile(world, second, tier1Gun(second.form), Math.PI, 1, 0, 0)).not.toBeNull();
+    expect(spawnProjectile(world, first, tier1Gun(first.form), 0, 1, 1, 0)).not.toBeNull();
     while (first.alive || second.alive) advanceAllProjectiles(world);
     expect(world.pendingDeaths).toHaveLength(2);
     const damageCount = world.events.filter(
@@ -278,7 +278,7 @@ describe('T-017 death, credit, respawn and protection', () => {
     victim.flux = 23;
     victim.ability = startDash(world.tick, { x: 1, y: 0 });
     victim.abilityReadyTick = { runner: 400, beast: 400, turret: 400 };
-    victim.weapon.runner.nextShotIn = 4;
+    victim.gunTimers.pulsePistol = 4;
     victim.heat = 9;
     victim.overheatEndTick = 400;
     victim.stunEndTick = 400;
@@ -309,11 +309,13 @@ describe('T-017 death, credit, respawn and protection', () => {
       flux: 23,
       ability: null,
       abilityReadyTick: { runner: 90, beast: 90, turret: 90 },
-      weapon: {
-        runner: { nextShotIn: 0 },
-        beast: { nextShotIn: 0 },
-        turret: { nextShotIn: 0 },
+      gunTimers: {
+        pulsePistol: 0, ricochetDisc: 0, scatterCannon: 0,
+        slugCannon: 0, railRepeater: 0, arcMortar: 0,
       },
+      reload: null,
+      melee: null,
+      swapReadyTick: 90,
       heat: 0,
       overheatEndTick: 90,
       stunEndTick: 90,
@@ -448,7 +450,7 @@ describe('T-017 death, credit, respawn and protection', () => {
     shooter.pos = { x: 0, y: 0 };
     enemy.pos = { x: 1.8, y: 0 };
     enemy.aim = Math.PI;
-    expect(spawnProjectile(world, enemy, Math.PI, 1, 0, 0)).not.toBeNull();
+    expect(spawnProjectile(world, enemy, tier1Gun(enemy.form), Math.PI, 1, 0, 0)).not.toBeNull();
     const events = step(world, [frame(1, InputButton.Fire)], {});
     expect(shooter.protectedEndTick).toBe(0);
     expect(
@@ -464,7 +466,7 @@ describe('T-017 death, credit, respawn and protection', () => {
     const target = player(world, 1);
     target.protectedEndTick = 60;
     target.pos = { x: 4, y: 0 };
-    const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     expect(projectile).not.toBeNull();
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
     expect(
@@ -484,7 +486,7 @@ describe('T-017 death, credit, respawn and protection', () => {
     const victim = player(world, 1);
     victim.pos = { x: 4, y: 0 };
     victim.hpFrac = 1e-3;
-    expect(spawnProjectile(world, killer, 0, 1, 0, 0)).not.toBeNull();
+    expect(spawnProjectile(world, killer, tier1Gun(killer.form), 0, 1, 0, 0)).not.toBeNull();
     killer.alive = false;
     killer.form = Form.Beast;
     while (world.projectiles.length > 0) advanceAllProjectiles(world);

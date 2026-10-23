@@ -42,6 +42,7 @@ function frame(value: unknown): value is InputFrame {
   if (!object(value)) return false;
   if (value.aimSource === AimSource.Bot) {
     return integer(value.seq) && value.seq >= 0 &&
+      integer(value.aimDist) && value.aimDist >= 0 && value.aimDist <= 255 &&
       integer(value.moveX) && value.moveX >= -127 && value.moveX <= 127 &&
       integer(value.moveY) && value.moveY >= -127 && value.moveY <= 127 &&
       typeof value.aim === 'number' && Number.isFinite(value.aim) &&

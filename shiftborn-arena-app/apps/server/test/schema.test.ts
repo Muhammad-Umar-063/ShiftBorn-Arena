@@ -4,7 +4,7 @@ import {
   ArenaState,
   ClusterAnnounce,
   CoverState,
-  PlayerState,
+  PlayerState, LocomotionState, LootState,
   RoomSettings,
   ShardState,
   ZoneState,
@@ -23,6 +23,7 @@ describe('T-021 NETWORK_PROTOCOL §4.2 schema', () => {
       settings: RoomSettings,
       players: { map: PlayerState },
       shards: { map: ShardState },
+      loot: { map: LootState },
       clusterAnnounces: { array: ClusterAnnounce },
       cover: { array: CoverState },
       zone: ZoneState,
@@ -32,7 +33,7 @@ describe('T-021 NETWORK_PROTOCOL §4.2 schema', () => {
       botDifficulty: 'uint8',
       nextMode: 'uint8',
     });
-    expect(Metadata.getFields(PlayerState)).toMatchObject({
+    expect(Metadata.getFields(PlayerState)).toMatchObject({ locomotion: LocomotionState,
       seat: 'uint8',
       controller: 'uint8',
       connected: 'boolean',

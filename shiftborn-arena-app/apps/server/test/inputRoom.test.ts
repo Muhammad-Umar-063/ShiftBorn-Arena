@@ -96,7 +96,8 @@ async function until(predicate: () => boolean): Promise<void> {
 }
 
 function input(seq: number, buttons = 0): number[] {
-  return [seq, 0, 0, 0, buttons, ClientAimSourceCode.Mouse];
+  return [seq, 0, 0, 0, buttons, ClientAimSourceCode.Mouse,
+    120, ...Array(8).fill(0)];
 }
 
 async function withRoom(
@@ -132,6 +133,10 @@ describe('T-022 real Colyseus input pipeline', () => {
         code: '',
       });
       const queue = room.bindTestClient(0);
+      const prepared = room.testWorld.players[0];
+      if (prepared === null || prepared === undefined) throw new Error('missing player');
+      // D-074 progression is covered by AT-LOAD tests; this test checks the morph edge path.
+      prepared.unlocked.beast = true;
       client.send(ClientMessageId.Input, [
         ...input(3),
         ...input(2),

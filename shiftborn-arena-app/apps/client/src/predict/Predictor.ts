@@ -1,6 +1,6 @@
 import { BALANCE, GREYBOX_V1, type ClientInputFrame } from '@shiftborn/shared';
 import { createMapRuntime, predictStep, type LocalPredictState,
-  type MapRuntime } from '@shiftborn/sim';
+  type MapRuntime, type PredictedShot } from '@shiftborn/sim';
 import type { PredictionAuthority } from './authoritative.js';
 
 export interface LocalPresentation {
@@ -18,6 +18,11 @@ export interface LocalPresentation {
 
 export type PredictionNotice =
   | { readonly kind: 'rejectedMorph'; readonly target: LocalPredictState['form'] };
+
+export interface PredictedShotStart extends PredictedShot {
+  readonly x: number;
+  readonly y: number;
+}
 
 interface PendingFrame { readonly frame: ClientInputFrame }
 const MAX_PENDING = BALANCE.net.reconnectS * BALANCE.tick.rateHz;
@@ -38,6 +43,9 @@ export class Predictor {
   private morphRequest: { readonly seq: number;
     readonly target: LocalPredictState['form'] } | null = null;
   private corrections = 0;
+  private lastErrorM: number | null = null;
+  private readonly errorsM: number[] = [];
+  private readonly correctionAtMs: number[] = [];
   private disposed = false;
 
   constructor(map: MapRuntime = createMapRuntime(GREYBOX_V1)) { this.map = map; }
@@ -48,6 +56,18 @@ export class Predictor {
   }
 
   get correctionCount(): number { return this.corrections; }
+  get localTick(): number | null {
+    return this.predicted === null ? null : this.predictedTick;
+  }
+  metrics(atMs: number): { readonly lastErrorM: number | null;
+    readonly averageErrorM: number | null; readonly correctionsPerMinute: number } {
+    while (this.correctionAtMs[0] !== undefined &&
+      atMs - this.correctionAtMs[0] >= 60_000) this.correctionAtMs.shift();
+    return { lastErrorM: this.lastErrorM,
+      averageErrorM: this.errorsM.length === 0 ? null :
+        this.errorsM.reduce((sum, error) => sum + error, 0) / this.errorsM.length,
+      correctionsPerMinute: this.correctionAtMs.length };
+  }
   get pendingSequences(): readonly number[] {
     return this.pending.map((entry) => entry.frame.seq);
   }
@@ -56,11 +76,11 @@ export class Predictor {
   }
 
   /** Called once after InputManager successfully sends a newly sampled frame. */
-  onFrame(frame: ClientInputFrame): void {
+  onFrame(frame: ClientInputFrame): readonly PredictedShotStart[] {
     if (this.disposed || this.authority === null || this.predicted === null ||
       !this.predicted.alive || this.pending.length >= MAX_PENDING ||
       frame.seq <= (this.pending.at(-1)?.frame.seq ?? this.authority.state.lastInputSeq))
-      return;
+      return [];
     this.pending.push({ frame: { ...frame } });
     const before = this.predicted.morph;
     this.predicted = predictStep(this.predicted, frame, this.map, {
@@ -70,6 +90,9 @@ export class Predictor {
     this.predictedTick += 1;
     if (before === null && this.predicted.morph !== null)
       this.morphRequest = { seq: frame.seq, target: this.predicted.morph.target };
+    const state = this.predicted;
+    return state.shotsThisTick.map((shot) => ({ ...shot,
+      x: state.pos.x, y: state.pos.y }));
   }
 
   /** A full authoritative restore precedes every replay; no stale timer survives. */
@@ -117,8 +140,13 @@ export class Predictor {
     const dx = displayed.x - this.predicted.pos.x;
     const dy = displayed.y - this.predicted.pos.y;
     // D-061: Euclidean, inclusive >= threshold. Offset is visual only.
-    if (Math.hypot(dx, dy) >= BALANCE.net.smoothErrorM) {
+    const errorM = Math.hypot(dx, dy);
+    this.lastErrorM = errorM;
+    this.errorsM.push(errorM);
+    if (this.errorsM.length > 60) this.errorsM.shift();
+    if (errorM >= BALANCE.net.smoothErrorM) {
       this.corrections += 1;
+      this.correctionAtMs.push(atMs);
       this.offsetX = 0; this.offsetY = 0;
     } else {
       this.offsetX = dx; this.offsetY = dy;
@@ -147,6 +175,9 @@ export class Predictor {
     this.predictedTick = 0;
     this.morphRequest = null;
     this.offsetX = 0; this.offsetY = 0; this.offsetAt = 0;
+    this.lastErrorM = null;
+    this.errorsM.length = 0;
+    this.correctionAtMs.length = 0;
   }
 
   dispose(): void {

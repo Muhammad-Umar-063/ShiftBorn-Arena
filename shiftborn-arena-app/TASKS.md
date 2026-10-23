@@ -59,14 +59,21 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-034 | Input manager, bindings, mouse aim | T-030 | M | DONE (2026-10-21) |
 | T-035 | Prediction and reconciliation | T-040, T-031, T-034 | L | DONE (2026-10-21) |
 | T-036 | Interpolation and event timeline | T-031, T-033 | M | DONE (2026-10-21) |
-| T-037 | Projectile views and local shots | T-035, T-036, T-016 | M | TODO |
-| T-038 | Debug overlay, hitbox view, dev console | T-031, T-029 | S | TODO |
+| T-037 | Projectile views and local shots | T-035, T-036, T-016 | M | DONE (2026-10-21) |
+| T-038 | Debug overlay, hitbox view, dev console | T-031, T-029 | S | DONE (2026-10-21) |
 | T-039 | Synthesized sounds | T-030 | S | TODO |
 | T-040 | `predictStep` and prediction equivalence tests | T-019, T-014 | M | DONE (2026-10-21) |
 | T-041 | Ram Charge, knockback and stun | T-015, T-019, T-040 | L | TODO |
 | T-042 | Rail Shot | T-016 | M | TODO |
 | T-043 | Destructible cover | T-041 | S | TODO |
 | T-044 | Scoring, ranking, stats and Frenzy mode rules | T-017 | M | TODO |
+| T-045 | Ten-minute match, fresh loadout and kill unlocks | T-017 | M | DONE (2026-10-23) |
+| T-046 | Gun state, ammunition, reloads, swap and dagger | T-045, T-016 | L | DONE (2026-10-23) |
+| T-047 | Tier 2 guns: Ricochet Disc, Slug Cannon, Arc Mortar | T-046 | M | DONE (2026-10-23) |
+| T-048 | Random loot and automatic pickup | T-046 | M | DONE (2026-10-23) |
+| T-049 | Sprint, aim distance and facing-relative encoding | T-040 | S | IN PROGRESS (2026-10-23) |
+| T-057 | Protocol v5, mirror, validation, replay and prediction for the release state | T-045 to T-049 | L | IN PROGRESS (2026-10-23) |
+| T-058 | Client integration of the release gameplay (Codex) | T-057, T-037 | L | TODO |
 | T-050 | Bot navigation grid and pathfinding | T-011 | M | TODO |
 | T-051 | Bot controller framework | T-050, T-024 | M | TODO |
 | T-052 | Bot combat: targeting, aim, fire, movement | T-051, T-016 | L | TODO |
@@ -89,8 +96,8 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 | T-111 | Zone presentation | T-110, T-063 | M | TODO |
 | T-112 | Bot zone behavior | T-110, T-054 | S | TODO |
 | T-113 | Quick-play mode config and host settings panel | T-110, T-025, T-065 | S | TODO |
-| T-120 | Keyboard aim and scheme detection (parallel-ok) | T-034 | S | TODO |
-| T-121 | Soft lock-on (parallel-ok) | T-120, T-036 | M | TODO |
+| T-120 | Keyboard turn model, aim distance and scheme detection (parallel-ok) | T-034, T-049 | S | TODO |
+| T-121 | Fragile aim assist (parallel-ok) | T-120, T-036 | M | TODO |
 | T-122 | Settings screen complete | T-121, T-039 | S | TODO |
 | T-123 | Death recap with counter hint | T-064 | S | TODO |
 | T-124 | Threat arrows and Rail Shot warning | T-042, T-036 | S | TODO |
@@ -336,12 +343,14 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 - **Spec:** `docs/NETWORK_PROTOCOL.md` §8.2, §8.3
 - **Do:** local shot visuals from predicted fire, linking by `(inputSeq, shotIdx)`, 500 ms fade for unmatched shots, remote projectiles scheduled at render time, impact, expire and blocked effects.
 - **Done when:** AT-NET-09 passes.
+- **2026-10-21 evidence:** Predicted local shots render on the first click frame; exact `(owner, inputSeq, shotIdx)` confirmation retains visual id and position. Remote flight and terminal effects use the delayed world timeline, and unmatched visuals fade after 500 ms. [The real-server trace](docs/T037_HOL_TRACE.md) preserves the protocol v2 AT-NET-09 failures and documents approved D-072's protocol v3 fix: eight bounded, ordered shot-intent slots travel with redundant input frames; server catch-up still applies newer movement/aim/held input while an accepted shot uses the original predicted tag. The deterministic 117/118 regression, exact matching and client acknowledgement/reset tests pass. An uninstrumented AT-NET-09 matrix passed 15/15 across 0/100/200 ms, 150 ms with 2% HOL loss, and 150 ms with 20 ms jitter plus loss; five more repetitions of each stress condition passed 10/10. All 25 cases drew the shot on the next frame and linked without a jump or page error. The full 609-test unit suite, lint, typecheck, build, map validation, size gate and diff check pass. The nongated browser suite passed 14/14; 21 live-gated cases were skipped there and AT-NET-09 was run separately. A static T-033 fixture clock was held at its selected tick to remove a transient 0.18 s flash assertion race; its three-repeat browser check passed.
 
 ### T-038 Debug overlay, hitbox view, dev console
 - **Track:** Client · **Size:** S · **Depends on:** T-031, T-029
 - **Spec:** `docs/ARCHITECTURE.md` §11
 - **Do:** F3 overlay values, F4 hitbox view, backtick console sending `devCmd` and showing `devResult`.
 - **Done when:** all overlay values update live; console commands work against a cheats-on server.
+- **2026-10-21 evidence:** F3 reads renderer frame timing and entity counts, measured RTT, authoritative and predicted ticks, predictor error/corrections, remote buffer depth, input scheme and raw local `hpFrac`/Flux. F4 reads map boxes and balance radii, hides destroyed cover, and has typed zone/Rail fixtures for later gameplay producers. Protocol v4 adds a validated, trusted `welcome.devCheatsEnabled` capability; Connection gates sends to the current open session while the server retains its command check. Browser tests with real `DEV_CHEATS=1` and `=0` servers passed 3/3 each, including all ten existing commands, private results, disabled-client flags, live metrics, hitboxes, neutral typing input, safe text and cleanup. The 611-test unit suite and 15 nongated browser tests pass; 23 live-gated browser cases were skipped in that sweep, and T-038's two live cases ran separately. Lint, typecheck, build, map validation, size (231278 gzipped bytes) and diff check pass. Deployment security acceptance is still AT-DEP-04.
 
 ### T-039 Synthesized sounds
 - **Track:** Client · **Size:** S · **Depends on:** T-030
@@ -379,6 +388,43 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 - **Spec:** `docs/GAME_RULES.md` §12; `docs/ARCHITECTURE.md` §4.7
 - **Do:** `ModeRules` interface and Frenzy implementation, ranking with tie-breakers, every per-match stat in GR-12.4 (including shots and hits by `aimSource`), `matchEnd` event.
 - **Done when:** AT-MATCH-04, AT-MATCH-05, AT-MATCH-06 pass.
+
+### T-045 Ten-minute match, fresh loadout and kill unlocks
+- **Track:** Sim · **Size:** M · **Depends on:** T-017
+- **Spec:** `docs/GAME_RULES.md` GR-2.2, GR-2.4, GR-2.6, GR-2.7a, GR-5.2, §18; D-073, D-074; `docs/CHANGE_CONTRACT.md`
+- **Do:** 600 s PLAYING; `unlocked` state and fresh loadout at match start, late join and bot replacement; KO-credited unlocks in step 9 with `formUnlocked`; `locked` morph denial; retained progress through death; seat handoff copies; audit three-minute assumptions in code, tests and docs.
+- **Done when:** AT-MATCH-01, AT-MATCH-02, the unlock and progress parts of AT-LOAD-01, AT-LOAD-03 to AT-LOAD-07 and the KO part of AT-MATCH-10 pass. AT-LOAD-01's gun and dagger checks complete in T-046 and AT-LOAD-02 in T-048.
+- **2026-10-23 evidence:** `unlocked` per player with fresh resets at match start, late join and bot replacement; step 9 KO credit unlocks Beast at 3 and Turret at 6 once each with `formUnlocked`; `locked` morph denial after the phase check, in sim and `predictStep`; 600 s PLAYING. Protocol 5 carries `unlockedMask`, events 31 to 40 and denial reason 4; the client validates the mask before replay. A `/unlock` dev command (cheats only) keeps live morph checks possible. New `progression.test.ts` (9 tests) plus AT-LOAD-07 assertions in the real-room seat and reconnect tests pass. Existing morph-rule tests opt into unlocked forms through `makeTestWorld({ unlockAllForms: true })`; their assertions are unchanged. Full suite 621/621, typecheck and lint pass. Live e2e scripts that morph (AT-NET-07) must send `/unlock` first; that is recorded for T-057 and T-068.
+
+### T-046 Gun state, ammunition, reloads, swap and dagger
+- **Track:** Sim · **Size:** L · **Depends on:** T-045, T-016
+- **Spec:** GR-7.2 to GR-7.20, GR-7.30 to GR-7.32, GR-11.3, GR-11.6, GR-18.4; D-076; BALANCE §4
+- **Do:** per-gun ownership, magazines, reserves and timers; selection and swap; timed reloads with cancellation; dagger strikes; fire fallback; retained ammunition on death; `predictStep` parity for every predictable field.
+- **Done when:** AT-AMMO-01 to AT-AMMO-07, AT-WPN-16, AT-MELEE-01 to AT-MELEE-03 and AT-LOAD-01's gun and dagger checks pass with the existing weapon tests.
+- **2026-10-23 evidence:** Per-gun ownership, magazine, reserve and timers replace the per-form timers; `selectedTier`, `reload`, `swapReadyTick` and `melee` join `PlayerRecord`, `LocalPredictState`, snapshots, the Schema mirror and client restoration (protocol 5 arrays in `GUN_IDS` order). One shared `advanceWeaponState` orders reload completion, swap, dagger, reload start, heat and fire, and automatic reload for both server and `predictStep`. Dagger strikes use a truncated capsule with a line-of-sight check on the target's nearest point, so the strike's width never reaches through a wall (GR-7.31 updated). Morph, ability, swap, dagger, death and match end cancel reloads without moving ammunition; respawn keeps every gun's exact counts (D-076). Input bits 8 to 11 (reload, sprint, swap, dagger) are valid; 12 to 15 are rejected. New `loadout.test.ts` (12 tests). The 1,000-sequence equivalence sweep now includes reload, swap and dagger edges and four loadouts, and every predictable field matches on every tick. AT-WPN-01 is redefined for magazines (D-076) with the exact GR-7.2 cadence; existing firing tests opt into `armAllGuns`. 633 tests, typecheck, lint, build and size (233,969 gzipped bytes) pass. Observed once in four full runs: `clientConnection.test.ts` real-socket join timed out under suite load; it passes alone (3/3) and in the other full runs. Stun cancellation of reloads and strikes lands with the first stun source in T-041.
+
+### T-047 Tier 2 guns: Ricochet Disc, Slug Cannon, Arc Mortar
+- **Track:** Sim · **Size:** M · **Depends on:** T-046
+- **Spec:** GR-7.1, GR-7.21 to GR-7.29; BALANCE §4, §9.5; D-077
+- **Do:** deterministic disc bounce with corner rule, Slug projectile, mortar landing point, flight and blast with line of sight; events; benchmark test from `BALANCE`.
+- **Done when:** AT-WPN-17 to AT-WPN-22 pass.
+- **2026-10-23 progress (paused):** Implemented but not yet covered by its own tests: `segmentBoxContact` (entry face normal, corner tie, receding t = 0 ignored), disc bounce with `bounceDamageMult` and `projectileBounce`, `mortarLandingPoint` (clamp, playable clamp, 0.1 m nudge), shells that land after 30 ticks with no collision and no spawn advance, and a `mortarBlast` with edge falloff, a line-of-sight check, owner and protection exclusion, and incoming direction toward the blast. `PlayerRecord.aimDistM` exists (default 12 m) but is not yet set from input; T-049 wires it. Workspace gates are green (633 tests). Next: write AT-WPN-17 to AT-WPN-22, then T-048.
+
+- **Codex verification 2026-10-23:** AT-WPN-17 to AT-WPN-22: 14 dedicated tests pass. Fixed a reproduced floating-point exclusion at the exact mortar blast edge. Sim source typecheck passes. Full suite with localhost permission: 647/647 pass; no retries. OQ-024 defaults now approved (D-083). Live client verification remains in T-057.
+
+### T-048 Random loot and automatic pickup
+- **Track:** Sim · **Size:** M · **Depends on:** T-046
+- **Spec:** GR-19, GR-18.3; D-075; BALANCE §4a
+- **Do:** map-agnostic candidate grid, separate `lootRng`, match-start placement, claims, duplicates, caps, replenishment, events.
+- **Done when:** AT-LOOT-01 to AT-LOOT-05 and AT-LOAD-02 pass.
+
+- **Codex verification 2026-10-23:** Seven dedicated loot tests pass; full sim suite 267/267 before T-049 integration. Seeded placements, automatic claims, duplicate reserve caps, locked-form storage, exact replenishment timing and replay are covered. Existing event assertions include initial loot spawns; D-068 conditional prediction fixture excludes exogenous pickups.
+
+### T-049 Sprint, aim distance and facing-relative encoding
+- **Track:** Sim and shared · **Size:** S · **Depends on:** T-040
+- **Spec:** GR-4.16 to GR-4.19; D-078; BALANCE §2
+- **Do:** sprint eligibility and speed, `aimDistM` from input, shared `encodeFacingMove`, keyboard turn and aim-distance integrators for the client, `predictStep` parity.
+- **Done when:** AT-MOV-09 to AT-MOV-11, AT-CTRL-04 and AT-CTRL-12 pass.
 
 ### T-050 Bot navigation grid and pathfinding
 - **Track:** Bots · **Size:** M · **Depends on:** T-011
@@ -421,6 +467,18 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 - **Spec:** `docs/ARCHITECTURE.md` §10
 - **Do:** `pnpm sim:determinism` (seeded bot-only matches run twice, hash compare; short version in CI, long in nightly), property invariants, event recount checks.
 - **Done when:** AT-DET-04, AT-DET-05, AT-DET-07, AT-FLUX-10, AT-DMG-07 pass.
+
+### T-057 Protocol v5 for the release state
+- **Track:** Network · **Size:** L · **Depends on:** T-045 to T-049
+- **Spec:** `docs/CHANGE_CONTRACT.md` §7; `docs/NETWORK_PROTOCOL.md`; D-071, D-072
+- **Do:** input frame with `aimDist` and new buttons, PlayerState and loot schema mirror, new events and client validation, replay and hash coverage, authoritative restoration and extended conditional equivalence tests, protocol version 5.
+- **Done when:** AT-NET-01, AT-NET-20, AT-NET-21, AT-DET-03 pass and AT-NET-09 still passes against a real server.
+
+### T-058 Client integration of the release gameplay
+- **Track:** Client (Codex) · **Size:** L (split before starting) · **Depends on:** T-057, T-037
+- **Spec:** `docs/CHANGE_CONTRACT.md` §4, §8, §12; `docs/CONTROLS_UI.md`; D-078 to D-081
+- **Do:** pointer lock and facing-relative controls, sprint, R, Q, V, C bindings, loot, ammunition, reload, swap, dagger, disc and mortar views, unlock feedback, menu input neutrality, art and audio integration.
+- **Done when:** AT-CTRL-04 to AT-CTRL-13 wiring and the relevant AT-UI checks pass in the real client against a real server; Claude's cross-review in `docs/CHANGE_CONTRACT.md` §12 is recorded.
 
 ### T-060 HUD core
 - **Track:** Client · **Size:** M · **Depends on:** T-035
@@ -517,16 +575,16 @@ Id ranges: T-001 to T-009 setup (T-008 is a design task) · T-010 to T-019 simul
 - **Do:** `QUICKPLAY_MODE` (`frenzy`, `zoneFrenzy`, `alternate`); host settings panel in the menu; `notice` to all on change.
 - **Done when:** AT-MATCH-08 passes end to end through the UI.
 
-### T-120 Keyboard aim and scheme detection (parallel-ok)
-- **Track:** Client · **Size:** S · **Depends on:** T-034
-- **Spec:** `docs/CONTROLS_UI.md` §2.2, §2.4, §3.2
-- **Do:** arrow-key 8-direction aim with rotation, scheme detection, `aimSource`, glyph switching across HUD and cards.
+### T-120 Keyboard turn model, aim distance and scheme detection (parallel-ok)
+- **Track:** Client (Claude numerics, Codex wiring) · **Size:** S · **Depends on:** T-034, T-049
+- **Spec:** `docs/CONTROLS_UI.md` §2.2, §2.4, §3.2; BALANCE §9.6; D-078
+- **Do:** wire the shared keyboard turn and aim-distance integrators, scheme detection, `aimSource`, glyph switching across HUD and cards. Supersedes the earlier 8-direction arrow aim.
 - **Done when:** AT-CTRL-04 and AT-CTRL-08 pass.
 
-### T-121 Soft lock-on (parallel-ok)
-- **Track:** Client · **Size:** M · **Depends on:** T-120, T-036
-- **Spec:** `docs/CONTROLS_UI.md` §3.3, §3.4; D-037
-- **Do:** acquire, track with turn rate, lead with assist strength, Space fire, override, cycle, hold release, break rules, morph keeps lock in range, lock ring and label, Ram and Rail Shot behavior with lock.
+### T-121 Fragile aim assist (parallel-ok)
+- **Track:** Client (Claude numerics, Codex wiring) · **Size:** M · **Depends on:** T-120, T-036
+- **Spec:** `docs/CONTROLS_UI.md` §3.3, §3.4; D-037, D-079
+- **Do:** shared assist state machine (acquire on fire, raw-aim retention, capped offset, break and reacquire delay) and its client wiring and feedback. Supersedes soft lock-on, Q lock, cycling and lead.
 - **Done when:** AT-CTRL-05, AT-CTRL-06, AT-CTRL-07 pass.
 
 ### T-122 Settings screen complete
@@ -697,3 +755,11 @@ Add one line per finished task. Used to re-estimate at the Fun Gate and the Appr
 | T-040 | M | Not tracked | 2026-10-21 | Shared local prediction with explicit tick/phase/cover and separate authoritative Flux, 1,000 seeded 48-tick exact conditional equivalence sequences, targeted boundaries and D-069 shot allocation. D-067 assigns browser reconciliation to T-035; OQ-021 remains its live-patch restoration gap. All required shared/sim/server/replay and workspace checks pass. |
 | T-035 | L | Not tracked | 2026-10-21 | D-071 protocol v2 full restoration, project-sequence replay, local visual correction and lifecycle resets. Production 150 ms RTT AT-NET-06 first-frame display pass and 60.756 s AT-NET-07 run with one Dash, two morphs and zero qualifying corrections; 0/100/200 ms and loss/jitter smoke passed. Full unit and required workspace checks passed. |
 | T-036 | M | Not tracked | 2026-10-21 | Tick-keyed remote interpolation, 100 ms extrapolation cap, stable seat attribution and one delayed event timeline with immediate local feedback. Two-client AT-NET-08 passed in all five required network conditions with moving remote players and maximum displayed frame jump 0.599 m. |
+| T-037 | M | Not tracked | 2026-10-21 | Exact local shot matching and event-only remote projectiles; D-072 protocol v3 shot-intent identity survives two-frame catch-up without approximate matching. Real-server AT-NET-09 passed 25/25 across required network conditions and repeated loss/jitter runs; full unit, browser and workspace gates passed. |
+| T-038 | S | Not tracked | 2026-10-21 | Live F3 diagnostics, F4 collision geometry and server-authorized console; protocol v4 trusted capability and private results. Real cheats-on/off browser checks, 611 unit tests and workspace gates pass. Zone and Rail debug adapters await their gameplay producers. |
+| T-045 | M | Not tracked | 2026-10-23 | 600 s matches, fresh Runner-only loadout, KO-credited Beast and Turret unlocks with `formUnlocked`, `locked` denial in sim and prediction, protocol 5 `unlockedMask` and events 31 to 40, `/unlock` dev seam. 621 tests, typecheck and lint pass. |
+| T-046 | L | Not tracked | 2026-10-23 | Gun inventory, magazines, reloads, swap, dagger and fire fallback shared by server and `predictStep`; protocol 5 gun arrays and restoration; D-076 retention through death and respawn; 1,000-sequence equivalence with the new actions. 633 tests and workspace gates pass. |
+
+| T-047 | M | Not tracked | 2026-10-23 | Codex: 14 dedicated tier-2 tests, exact-edge mortar fix; 647/647 full suite passes with real localhost sockets. |
+
+| T-048 | M | Not tracked | 2026-10-23 | Codex: deterministic loot, authoritative claims and replenishment, 7 dedicated tests and 267/267 sim checks. |

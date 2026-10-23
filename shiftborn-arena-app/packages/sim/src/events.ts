@@ -2,9 +2,9 @@ import type {
   AbilityId,
   Cause,
   Form,
+  GunId,
   MorphDenialReason,
   Phase,
-  WeaponId,
 } from '@shiftborn/shared';
 import type { Vec2 } from './math/vec2.js';
 import type { World } from './world.js';
@@ -43,6 +43,16 @@ export const SIM_EVENT_NAMES = [
   'score',
   'matchEnd',
   'positionClamped',
+  'formUnlocked',
+  'reloadStart',
+  'reloadEnd',
+  'weaponSwap',
+  'meleeStart',
+  'meleeStrike',
+  'projectileBounce',
+  'mortarBlast',
+  'lootSpawn',
+  'lootPickup',
 ] as const;
 
 export type SimEventName = (typeof SIM_EVENT_NAMES)[number];
@@ -68,6 +78,16 @@ type SimpleEventName = Exclude<
   | 'abilityEnd'
   | 'phase'
   | 'spawn'
+  | 'formUnlocked'
+  | 'reloadStart'
+  | 'reloadEnd'
+  | 'weaponSwap'
+  | 'meleeStart'
+  | 'meleeStrike'
+  | 'projectileBounce'
+  | 'mortarBlast'
+  | 'lootSpawn'
+  | 'lootPickup'
 >;
 export type SimEvent =
   | { [Name in SimpleEventName]: { readonly type: Name } }[SimpleEventName]
@@ -165,7 +185,7 @@ export type SimEvent =
       readonly type: 'projectileSpawn';
       readonly id: number;
       readonly ownerSeat: number;
-      readonly weapon: WeaponId;
+      readonly weapon: GunId;
       readonly x: number;
       readonly y: number;
       readonly angle: number;
@@ -173,6 +193,10 @@ export type SimEvent =
       readonly advancedTicks: number;
       readonly inputSeq: number;
       readonly shotIdx: number;
+      /** GR-7.27: Arc Mortar landing; 0 for direct-fire guns. */
+      readonly landTick: number;
+      readonly targetX: number;
+      readonly targetY: number;
     }
   | {
       readonly type: 'projectileHit';
@@ -199,6 +223,67 @@ export type SimEvent =
       readonly type: 'overheat';
       readonly seat: number;
       readonly endTick: number;
+    }
+  | { readonly type: 'formUnlocked'; readonly seat: number; readonly form: Form }
+  | {
+      readonly type: 'reloadStart';
+      readonly seat: number;
+      readonly gun: GunId;
+      readonly endTick: number;
+    }
+  | {
+      readonly type: 'reloadEnd';
+      readonly seat: number;
+      readonly gun: GunId;
+      readonly completed: 0 | 1;
+    }
+  | {
+      readonly type: 'weaponSwap';
+      readonly seat: number;
+      readonly gun: GunId;
+      readonly readyTick: number;
+    }
+  | {
+      readonly type: 'meleeStart';
+      readonly seat: number;
+      readonly strikeTick: number;
+      readonly endTick: number;
+    }
+  | {
+      readonly type: 'meleeStrike';
+      readonly seat: number;
+      readonly targetSeat: number;
+      readonly damage: number;
+      readonly tags: number;
+      readonly x2: number;
+      readonly y2: number;
+    }
+  | {
+      readonly type: 'projectileBounce';
+      readonly id: number;
+      readonly x: number;
+      readonly y: number;
+      readonly angle: number;
+    }
+  | {
+      readonly type: 'mortarBlast';
+      readonly id: number;
+      readonly x: number;
+      readonly y: number;
+    }
+  | {
+      readonly type: 'lootSpawn';
+      readonly lootId: number;
+      readonly gun: GunId;
+      readonly x: number;
+      readonly y: number;
+    }
+  | {
+      readonly type: 'lootPickup';
+      readonly lootId: number;
+      readonly seat: number;
+      readonly gun: GunId;
+      readonly kind: 0 | 1;
     };
 
 export function emitEvent(world: World, event: SimEvent): void {

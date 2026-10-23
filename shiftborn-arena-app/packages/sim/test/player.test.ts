@@ -45,6 +45,7 @@ describe('GR §3 player records and seat APIs', () => {
         'vel',
         'aim',
         'form',
+        'unlocked',
         'morph',
         'morphReadyTick',
         'hpFrac',
@@ -53,7 +54,12 @@ describe('GR §3 player records and seat APIs', () => {
         'fluxRegenTicks',
         'ability',
         'abilityReadyTick',
-        'weapon',
+        'guns',
+        'selectedTier',
+        'gunTimers',
+        'reload',
+        'swapReadyTick',
+        'melee',
         'heat',
         'overheatEndTick',
         'stunEndTick',
@@ -69,6 +75,7 @@ describe('GR §3 player records and seat APIs', () => {
         'lastShotInputSeq',
         'nextShotIdx',
         'aimSource',
+        'aimDistM', 'sprinting',
         'stats',
       ].sort(),
     );
@@ -80,11 +87,16 @@ describe('GR §3 player records and seat APIs', () => {
       beast: 12,
       turret: 12,
     });
-    expect(first.weapon).toEqual({
-      runner: { nextShotIn: 0 },
-      beast: { nextShotIn: 0 },
-      turret: { nextShotIn: 0 },
+    expect(first.gunTimers).toEqual({
+      pulsePistol: 0, ricochetDisc: 0, scatterCannon: 0,
+      slugCannon: 0, railRepeater: 0, arcMortar: 0,
     });
+    expect(Object.values(first.guns).every((gun) =>
+      !gun.owned && gun.mag === 0 && gun.reserve === 0)).toBe(true);
+    expect(first.selectedTier).toEqual({ runner: 0, beast: 0, turret: 0 });
+    expect(first.reload).toBeNull();
+    expect(first.melee).toBeNull();
+    expect(first.swapReadyTick).toBe(12);
     expect(first.morph).toBeNull();
     expect(first.ability).toBeNull();
     expect(first.knockback).toBeNull();
@@ -93,7 +105,9 @@ describe('GR §3 player records and seat APIs', () => {
     expect(numericLeaves(first.stats).every((value) => value === 0)).toBe(true);
     expect(first.pos).not.toBe(second.pos);
     expect(first.vel).not.toBe(second.vel);
-    expect(first.weapon.runner).not.toBe(second.weapon.runner);
+    expect(first.gunTimers).not.toBe(second.gunTimers);
+    expect(first.guns.pulsePistol).not.toBe(second.guns.pulsePistol);
+    expect(first.selectedTier).not.toBe(second.selectedTier);
     expect(first.abilityReadyTick).not.toBe(second.abilityReadyTick);
     expect(first.damageLog).not.toBe(second.damageLog);
     expect(first.stats.shotsFired.byWeapon).not.toBe(
@@ -149,7 +163,7 @@ describe('GR §3 player records and seat APIs', () => {
     player.form = Form.Beast;
     player.morph = { target: Form.Turret, endTick: 50 };
     player.abilityReadyTick.runner = 99;
-    player.weapon.beast.nextShotIn = 2;
+    player.gunTimers.scatterCannon = 2;
     player.damageLog.push({ attackerId: 'x', tick: 1, amount: 3 });
     player.stats.kos = 3;
     player.stats.hits.byAimSource.mouse = 2;
@@ -181,9 +195,7 @@ describe('GR §3 player records and seat APIs', () => {
       heat: 0,
     });
     expect(Object.values(player.abilityReadyTick)).toEqual([100, 100, 100]);
-    expect(
-      Object.values(player.weapon).map((weapon) => weapon.nextShotIn),
-    ).toEqual([0, 0, 0]);
+    expect(Object.values(player.gunTimers)).toEqual([0, 0, 0, 0, 0, 0]);
     expect(player.damageLog).toEqual([]);
     expect(numericLeaves(player.stats).every((value) => value === 0)).toBe(
       true,

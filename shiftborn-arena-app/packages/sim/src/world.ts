@@ -10,6 +10,7 @@ import {
   type PlayerRecord,
 } from './player.js';
 import type { Projectile } from './projectiles.js';
+import type { LootItem, LootReplenishment } from './loot.js';
 import type { Shard, ClusterState } from './shards.js';
 
 export type { MapRuntime } from './map/collisionIndex.js';
@@ -31,6 +32,10 @@ export interface World {
   matchId: string;
   roomSeed: number;
   rng: Rng;
+  lootRng: Rng;
+  loot: LootItem[];
+  lootReplenishments: LootReplenishment[];
+  nextLootId: number;
   map: MapRuntime;
   cover: CoverState[];
   players: (PlayerRecord | null)[];
@@ -63,6 +68,7 @@ export function createWorld(opts: {
     matchId: '',
     roomSeed: opts.roomSeed,
     rng: sfc32(opts.roomSeed, matchIndex),
+    lootRng: sfc32(opts.roomSeed, matchIndex), loot: [], lootReplenishments: [], nextLootId: 0,
     map: createMapRuntime(opts.map),
     cover: opts.map.cover.map(({ id }) => ({ id, intact: true })),
     players: Array.from({ length: BALANCE.match.seats }, () => null),

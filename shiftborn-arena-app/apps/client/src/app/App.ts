@@ -25,6 +25,10 @@ import { staticRenderState } from '../render/stateView.js';
 import { Predictor } from '../predict/Predictor.js';
 import { readPredictionAuthority } from '../predict/authoritative.js';
 import type { LocalFeedback } from '../render/worldEventTimeline.js';
+import { DebugOverlay } from '../debug/DebugOverlay.js';
+import { DevConsole } from '../debug/DevConsole.js';
+import type { Connection } from '../net/Connection.js';
+import type { DevResult } from '../net/messageValidation.js';
 
 export interface AppOptions {
   readonly buildId?: string;
@@ -37,6 +41,7 @@ export interface AppOptions {
   readonly onDispose?: () => void;
   readonly inputTransport?: InputTransport;
   readonly serverTickEstimate?: () => number | null;
+  readonly debugConnection?: Connection;
 }
 
 /** T-030: one screen at a time; T-031 supplies the connection launcher. */
@@ -54,6 +59,8 @@ export class App {
   private latestState: AuthoritativeRead | null = null;
   private arenaRenderer: ArenaRenderer | null = null;
   private inputManager: InputManager | null = null;
+  private debugOverlay: DebugOverlay | null = null;
+  private devConsole: DevConsole | null = null;
   private predictionUnavailable = false;
   private readonly localFeedbackListeners = new Set<(event: LocalFeedback) => void>();
   private readonly onKeyDown = (event: KeyboardEvent): void => {
@@ -96,14 +103,20 @@ export class App {
     if (id !== this.localPlayerId) {
       this.prediction.reset();
       this.arenaRenderer?.resetTimeline();
+      this.inputManager?.resetShotIntents();
     }
     this.localPlayerId = id;
     this.applyRenderState();
   }
 
   showAuthoritativeState(state: AuthoritativeRead): void {
+    if (this.latestState !== null && this.latestState.matchId !== state.matchId)
+      this.inputManager?.resetShotIntents();
     this.latestState = state;
+    // Schema phase 1 is PLAYING; RESULTS may clear flights without expire events.
+    this.arenaRenderer?.setProjectilesEnabled(state.phase === 1);
     const local = this.localPlayerId === null ? undefined : state.players[this.localPlayerId];
+    if (local !== undefined && !local.alive) this.inputManager?.resetShotIntents();
     if (local !== undefined) this.emitLocalFeedback({ kind: 'vitals', tick: state.tick,
       hpFrac: local.hpFrac, flux: local.flux, alive: local.alive });
     if (this.localPlayerId !== null) {
@@ -117,13 +130,18 @@ export class App {
   }
 
   showEventBatch(batch: EventBatch): void {
-    for (const feedback of this.arenaRenderer?.ingestEventBatch(batch) ?? [])
+    for (const feedback of this.arenaRenderer?.ingestEventBatch(batch,
+      (seq) => this.inputManager?.confirmShotIntent(seq)) ?? [])
       this.emitLocalFeedback(feedback);
   }
+  showDevResult(result: DevResult): void { this.devConsole?.result(result); }
 
   suspendInput(): void { this.inputManager?.suspend(); }
   recoverInput(lastInputSeq: number): void { this.inputManager?.recover(lastInputSeq); }
-  resetPrediction(): void { this.prediction.reset(); }
+  resetPrediction(): void {
+    this.prediction.reset();
+    this.inputManager?.resetShotIntents();
+  }
   resetPresentationTimeline(): void { this.arenaRenderer?.resetTimeline(); }
 
   showServerTick(tick: number): void {
@@ -160,6 +178,8 @@ export class App {
   dispose(): void {
     document.removeEventListener('keydown', this.onKeyDown);
     this.inputManager?.dispose();
+    this.debugOverlay?.dispose();
+    this.devConsole?.dispose();
     this.inputManager = null;
     this.arenaRenderer?.dispose();
     this.arenaRenderer = null;
@@ -188,6 +208,8 @@ export class App {
   }
 
   private render(): void {
+    this.debugOverlay?.dispose(); this.debugOverlay = null;
+    this.devConsole?.dispose(); this.devConsole = null;
     this.inputManager?.detach();
     this.arenaRenderer?.dispose();
     this.arenaRenderer = null;
@@ -285,6 +307,37 @@ export class App {
         this.arenaRenderer.setLocalPresentation(() =>
           this.prediction.presentation(performance.now()));
         this.arenaRenderer.setClockEstimate(this.options.serverTickEstimate ?? null);
+        if (import.meta.env.DEV) this.debugOverlay = new DebugOverlay(stage);
+        if (this.options.debugConnection !== undefined)
+          this.devConsole = new DevConsole(stage, this.options.debugConnection,
+            (open) => {
+              this.inputManager?.setModalOpen(open);
+              if (!open) this.arenaRenderer?.renderer.domElement.focus();
+            });
+        this.arenaRenderer.setFrameObserver((at, frameMs) => {
+          const renderer = this.arenaRenderer;
+          const overlay = this.debugOverlay;
+          if (renderer === null || overlay === null) return;
+          const local = this.localPlayerId === null ? undefined :
+            this.latestState?.players[this.localPlayerId];
+          const prediction = this.prediction.metrics(at);
+          const counts = renderer.debugCounts;
+          overlay.updateFrame(at, frameMs, {
+            rttMs: this.options.debugConnection?.clock.medianRttMs() ?? null,
+            serverTick: this.serverTick,
+            localTick: this.prediction.localTick,
+            lastErrorM: prediction.lastErrorM,
+            averageErrorM: prediction.averageErrorM,
+            correctionsPerMinute: this.prediction.localTick === null ? null :
+              prediction.correctionsPerMinute,
+            bufferDepthTicks: counts.bufferDepthTicks,
+            players: this.latestState === null ? null : counts.players,
+            shards: this.latestState === null ? null : counts.shards,
+            projectiles: this.latestState === null ? null : counts.projectiles,
+            inputScheme: this.inputManager?.sampledFrame?.aimSource ?? null,
+            hpFrac: local?.hpFrac ?? null, flux: local?.flux ?? null,
+          });
+        });
         this.applyRenderState();
         if (this.inputManager === null) {
           this.inputManager = new InputManager({
@@ -303,12 +356,24 @@ export class App {
             perspective: () => this.settings.snapshot().preferences.cameraView,
             onAim: (radians, distanceM) =>
               this.arenaRenderer?.setLocalAim(radians, distanceM),
-            onFrame: (frame) => this.prediction.onFrame(frame),
+            onFrame: (frame) => {
+              const shots = this.prediction.onFrame(frame);
+              if (shots.length > 0) {
+                this.inputManager?.rememberShotIntents(shots, performance.now());
+                this.arenaRenderer?.startPredictedShots(shots, performance.now());
+              }
+            },
             onUrgentInput: () => this.arenaRenderer?.sampleInputNow(),
             onAction: (action) => {
               if (action === 'cameraView') this.toggleCameraView();
+              else if (action === 'debugOverlay') this.debugOverlay?.toggle();
+              else if (action === 'hitboxView')
+                this.arenaRenderer?.hitboxes.setVisible(!this.arenaRenderer.hitboxes.visible);
+              else if (action === 'devConsole') this.devConsole?.toggle();
             },
             devBuild: import.meta.env.DEV,
+            serverCheatsAllowed: () =>
+              this.options.debugConnection?.canUseDevConsole === true,
           });
         }
         this.inputManager.attach(this.arenaRenderer.renderer.domElement, stage);
@@ -335,6 +400,7 @@ export class App {
       this.settings.snapshot().preferences.reducedMotion,
       this.settings.snapshot().preferences.cameraView);
     if (state === null) return;
+    this.arenaRenderer.setProjectilesEnabled(this.latestState.phase === 1);
     this.arenaRenderer.setView(state.view);
     this.arenaRenderer.setEntities(readEntitySnapshot(this.latestState, this.localPlayerId));
   }

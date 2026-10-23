@@ -40,7 +40,7 @@ const coverMap: MapData = {
 const participant = { id: 'p0', name: 'P0', isBot: false, seat: 0 };
 
 function frame(moveX = 0, moveY = 0, aim = 0, seq = 1): InputFrame {
-  return { seq, moveX, moveY, aim, buttons: 0, aimSource: AimSource.Mouse };
+  return { aimDist: 120, seq, moveX, moveY, aim, buttons: 0, aimSource: AimSource.Mouse };
 }
 
 function playerWorld(map: MapData = openMap) {

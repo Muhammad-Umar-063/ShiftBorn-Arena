@@ -402,6 +402,8 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
     this.executeQueuedDevCommands();
     const inputs: InputFrame[] = [];
     const inputPressedButtonsBySeat: (number | undefined)[] = [];
+    const shotIntentBySeat: (number | null | undefined)[] = [];
+    const appliedShotSeqBySeat: (number | undefined)[] = [];
     const spawnAdvanceTicksBySeat: number[] = Array.from(
       { length: this.world.players.length },
       () => 0,
@@ -445,7 +447,11 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
         );
       const applied = binding.queue.consume();
       if (applied.frame === undefined) continue;
-      inputs[seat] = applied.frame;
+      const shotIntentSeq = binding.queue.candidateShotIntent(applied.frame);
+      shotIntentBySeat[seat] = shotIntentSeq;
+      appliedShotSeqBySeat[seat] = applied.frame.seq;
+      inputs[seat] = shotIntentSeq === null ? applied.frame
+        : { ...applied.frame, shotIntentSeq };
       inputPressedButtonsBySeat[seat] = applied.pressedButtons;
     }
     const eventTick = this.world.tick;
@@ -454,6 +460,14 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       inputPressedButtonsBySeat,
       spawnAdvanceTicksBySeat,
     });
+    const firedSeats = new Set(events.flatMap((event) =>
+      event.type === 'projectileSpawn' ? [event.ownerSeat] : []));
+    for (const seat of firedSeats) {
+      const appliedSeq = appliedShotSeqBySeat[seat];
+      if (appliedSeq !== undefined)
+        this.inputBySeat.get(seat)?.queue.resolveShotIntent(
+          appliedSeq, shotIntentBySeat[seat] ?? null);
+    }
     if (recording !== undefined) {
       this.recorder?.recordStep(
         this.world, recording, events, inputs,
@@ -572,6 +586,7 @@ export class ArenaRoom extends Room<{ state: ArenaStateRecord }> {
       serverTick: this.world.tick,
       tickRate: BALANCE.tick.rateHz,
       patchRate: BALANCE.tick.patchRateHz,
+      devCheatsEnabled: this.devCheatsEnabled,
       testerCode: client.sessionId.slice(0, 6),
     });
   }

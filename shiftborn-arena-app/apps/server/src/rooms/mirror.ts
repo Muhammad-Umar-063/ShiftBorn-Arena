@@ -3,15 +3,17 @@ import {
   AimSource,
   Controller,
   Form,
+  GUN_IDS,
   Mode,
   Phase,
+  type GunId,
 } from '@shiftborn/shared';
 import type { PlayerRecord, World } from '@shiftborn/sim';
 import {
   ClusterAnnounce,
   CoverState,
   PlayerState,
-  ShardState,
+  ShardState, LootState,
   type ArenaStateRecord,
   type PlayerStateRecord,
 } from './schema.js';
@@ -52,6 +54,12 @@ export function formCode(value: Form): number {
     case Form.Turret:
       return 2;
   }
+}
+
+/** NETWORK_PROTOCOL §4.2: Runner bit 0, Beast bit 1, Turret bit 2. */
+export function unlockedMask(unlocked: Readonly<Record<Form, boolean>>): number {
+  return (unlocked[Form.Runner] ? 1 : 0) | (unlocked[Form.Beast] ? 2 : 0) |
+    (unlocked[Form.Turret] ? 4 : 0);
 }
 
 export function abilityCode(value: AbilityId | null): number {
@@ -117,6 +125,31 @@ export interface MirrorContext {
   };
 }
 
+/** NETWORK_PROTOCOL §4.2: the `GUN_IDS` index of a gun, or -1. */
+export function gunCode(gun: GunId | null): number {
+  return gun === null ? -1 : GUN_IDS.indexOf(gun);
+}
+
+function assignNumbers(target: number[], values: readonly number[]): number {
+  let changed = 0;
+  for (let index = 0; index < values.length; index += 1) {
+    const value = values[index];
+    if (value === undefined) continue;
+    if (index >= target.length) {
+      target.push(value);
+      changed += 1;
+    } else if (!Object.is(target[index], value)) {
+      target[index] = value;
+      changed += 1;
+    }
+  }
+  if (target.length > values.length) {
+    target.splice(values.length);
+    changed += 1;
+  }
+  return changed;
+}
+
 function assign<T extends object, K extends keyof T>(
   target: T,
   key: K,
@@ -146,6 +179,7 @@ function mirrorPlayer(
   changed += assign(target, 'vy', player.vel.y);
   changed += assign(target, 'aim', player.aim);
   changed += assign(target, 'form', formCode(player.form));
+  changed += assign(target, 'unlockedMask', unlockedMask(player.unlocked));
   changed += assign(
     target,
     'morphTarget',
@@ -209,9 +243,29 @@ function mirrorPlayer(
   changed += assign(target, 'lastHeldButtons', player.lastHeldButtons);
   changed += assign(target, 'lastShotInputSeq', Math.max(0, player.lastShotInputSeq));
   changed += assign(target, 'nextShotIdx', player.nextShotIdx);
-  changed += assign(target, 'weaponRunnerNextShotIn', player.weapon[Form.Runner].nextShotIn);
-  changed += assign(target, 'weaponBeastNextShotIn', player.weapon[Form.Beast].nextShotIn);
-  changed += assign(target, 'weaponTurretNextShotIn', player.weapon[Form.Turret].nextShotIn);
+  let ownedMask = 0;
+  for (let index = 0; index < GUN_IDS.length; index += 1) {
+    const gun = GUN_IDS[index];
+    if (gun !== undefined && player.guns[gun].owned) ownedMask |= 1 << index;
+  }
+  changed += assign(target, 'gunOwnedMask', ownedMask);
+  changed += assignNumbers(target.gunMag, GUN_IDS.map((gun) => player.guns[gun].mag));
+  changed += assignNumbers(target.gunReserve,
+    GUN_IDS.map((gun) => player.guns[gun].reserve));
+  changed += assignNumbers(target.gunNextShotIn,
+    GUN_IDS.map((gun) => player.gunTimers[gun]));
+  changed += assign(target, 'selectedRunner', player.selectedTier[Form.Runner]);
+  changed += assign(target, 'selectedBeast', player.selectedTier[Form.Beast]);
+  changed += assign(target, 'selectedTurret', player.selectedTier[Form.Turret]);
+  changed += assign(target, 'reloadGun', gunCode(player.reload?.gun ?? null));
+  changed += assign(target, 'reloadEndTick', player.reload?.endTick ?? 0);
+  changed += assign(target, 'swapReadyTick', player.swapReadyTick);
+  changed += assign(target, 'meleeActive', player.melee !== null);
+  changed += assign(target, 'meleeStartTick', player.melee?.startTick ?? 0);
+  changed += assign(target, 'meleeStrikeTick', player.melee?.strikeTick ?? 0);
+  changed += assign(target, 'meleeEndTick', player.melee?.endTick ?? 0);
+  changed += assign(target.locomotion, 'sprinting', player.sprinting);
+  changed += assign(target.locomotion, 'aimDist', Math.round(player.aimDistM * 10));
   const source = aimSourceCode(player.aimSource);
   if (source !== null) changed += assign(target, 'aimSource', source);
   return changed;
@@ -269,6 +323,16 @@ export function mirrorWorld(
       changed += 1;
     }
   }
+
+  const activeLoot = new Set<string>();
+  for (const item of world.loot) {
+    const id = String(item.id); activeLoot.add(id);
+    let target = state.loot.get(id);
+    if (!target) { target = new LootState(); state.loot.set(id, target); changed++; }
+    changed += assign(target, 'gun', GUN_IDS.indexOf(item.gun));
+    changed += assign(target, 'x', item.x); changed += assign(target, 'y', item.y);
+  }
+  for (const id of state.loot.keys()) if (!activeLoot.has(id)) { state.loot.delete(id); changed++; }
 
   const activeShards = new Set<string>();
   for (const shard of world.shards) {

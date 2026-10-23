@@ -31,6 +31,37 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 
 ## Open
 
+### OQ-023 Map roster from DRAFT_IMG
+- Asked: 2026-10-23 by Claude, while writing the change contract
+- Question: Which DRAFT_IMG layouts should become playable maps, and which map is the default?
+- Context: The owner wants loot on random places on all maps (D-075). Loot placement is map-agnostic (GR-19.2), so it already works on `greybox_v1`. DRAFT_IMG holds four rough layouts: Arena of the Lion's Claw (5 to 10 players), two Sunken Catacombs variants (12 to 16, multi-level) and Dwarven Ironhold (16 to 24). A new map needs collision data, map rules V1 to V9, spawn, shard and zone points, and Codex's visual pass. Extra floors are not approved.
+- Options: A) Keep `greybox_v1` as the only map for this release. B) Add a flat 8-player map adapted from Lion's Claw. C) Adapt several layouts as flat 8-player maps and rotate them.
+- Recommendation: B for this release, so the requested buildings exist, with A as the fallback if time is short.
+- Blocks: nothing; loot works on every map.
+- Needed by: before Codex's environment art pass
+- Status: Answered → D-083
+- Answer: Owner approved in conversation on 2026-10-23. Adapt Lion’s Claw as the default flat eight-player map.
+
+### OQ-024 Lead-engineer resolutions awaiting owner review
+- Asked: 2026-10-23 by Claude, under the D-077 balancing authorization and the request to resolve unanswered choices
+- Question: Do you accept these defaults, which are implemented and easy to change?
+- Context: All numbers are in `docs/BALANCE.md` proto-4 and all rules in `docs/GAME_RULES.md`.
+  1. Tier 2 values and the §9.5 benchmark (Disc 24 at 2.5/s, Slug 50 at 1/s, Mortar 75 at 0.85/s), magazines, reloads, pickup ammunition and reserve caps.
+  2. The Arc Mortar flies over walls and cover; walls and cover between the landing point and a target block only the blast (GR-7.29).
+  3. Aim distance comes from vertical mouse motion and Up/Down arrows (GR-4.18) and is used only by the Arc Mortar.
+  4. Sprint: 1.3x speed, forward within 60° of aim, suppressed while fire is held, no stamina (GR-4.16).
+  5. Reload: automatic when empty; cancelled by morph, ability, swap, dagger, stun, death and match end; not by knockback or sprint (GR-7.20).
+  6. Swap and first-gun draw delay 0.4 s (GR-7.16); fire uses the dagger when the form has no usable gun (GR-7.17).
+  7. Dagger: 25 damage, 0.1 s windup, 0.5 s recovery, 0.8 m reach, usable in every form (GR-7.30 to GR-7.32).
+  8. Loot: 15 items (3 of each tier 1 gun, 2 of each tier 2), 20 s replenishment at a new random place, collection only during PLAYING (GR-19).
+  9. Fragile assist for keyboard aim only, never mouse (D-079, CONTROLS_UI §3.3).
+- Options: A) Accept all. B) Accept with listed changes.
+- Recommendation: A, then tune from playtest metrics.
+- Blocks: nothing; work proceeds on these defaults.
+- Needed by: T-100 Fun Gate
+- Status: Answered → D-083
+- Answer: Owner approved all nine defaults in conversation on 2026-10-23.
+
 ### OQ-001 Final game name
 - Asked: 2026-10-14, doc pack
 - Question: Is "Shiftborn Arena" the final name?
@@ -174,6 +205,10 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 - Status: Open
 - Answer:
 
+---
+
+## Answered
+
 ### OQ-018 Detailed FPP mouse-turn control
 - Asked: 2026-10-21 by Codex, following D-065
 - Question: What detailed mouse control rule should turn horizontal aim in FPP without pointer lock?
@@ -182,12 +217,19 @@ Unresolved decisions. Codex (or any agent or engineer) writes a question here in
 - Recommendation: None until the control behavior is specified and approved.
 - Blocks: Complete FPP mouse playability only; not T-034 or T-031.
 - Needed by: Before FPP mouse aim is enabled
-- Status: Open
-- Answer:
+- Status: Answered → D-078
+- Answer: Answered on 2026-10-23 with the facing-relative basis: pointer lock after a canvas click, horizontal mouse motion turns the player in TPP and FPP, and Esc releases the lock (D-078).
 
----
-
-## Answered
+### OQ-022 Predicted shot identity through input catch-up
+- Asked: 2026-10-21 by Codex, while investigating T-037 AT-NET-09
+- Question: How should a predicted local shot retain an exact `(owner, inputSeq, shotIdx)` identity when server catch-up applies the newer of two consumed frames?
+- Context: §6.1 predicted the first firing frame N, while §5.4 could apply N+1 with the same Fire edge. The real-server trace records `(117,0)` predicted and `(118,0)` confirmed, and other failures at 100/200 ms and loss/jitter. See [T-037 trace](docs/T037_HOL_TRACE.md).
+- Options: A) Version the input protocol with durable ordered shot-intent tags in redundant frames. B) Define another exact authoritative remapping rule.
+- Recommendation: A.
+- Blocks: Resolved for T-037; protocol v3 AT-NET-09 passed in the required live network conditions.
+- Needed by: T-037
+- Status: Answered → D-072
+- Answer: Option A approved on 2026-10-21. Preserve exact matching and use the versioned input rule in [D-072](DECISIONS.md#d-072-durable-shot-intent-identity-through-input-catch-up).
 
 ### OQ-021 Complete network restoration for prediction
 - Asked: 2026-10-21 by Codex, during T-040

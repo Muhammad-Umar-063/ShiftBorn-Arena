@@ -45,6 +45,11 @@ export function setAdministrativeHealth(world: World, player: PlayerRecord, frac
   return true;
 }
 
+/** D-074 test seam: unlock every form without KO credit, events or progress. */
+export function setAdministrativeUnlockAll(player: PlayerRecord): void {
+  player.unlocked = { [Form.Runner]: true, [Form.Beast]: true, [Form.Turret]: true };
+}
+
 /** T-029: direct form selection does not enter the normal paid morph pipeline. */
 export function setAdministrativeForm(world: World, player: PlayerRecord, form: Form): boolean {
   if (!player.alive) return false;

@@ -123,7 +123,7 @@ describe('T-036 NETWORK_PROTOCOL §§5.3,7 event timeline', () => {
     expect(validateEventTuple([EventId.RailShotFired, 1, 0, 0, Infinity, 2]))
       .toBeNull();
     expect(validateEventTuple([EventId.ProjectileSpawn, 'id', 1,
-      WeaponId.PulsePistol, 0, 0, 0, 10, 0, 1, 0])).not.toBeNull();
+      WeaponId.PulsePistol, 0, 0, 0, 10, 0, 1, 0, 0, 0, 0])).not.toBeNull();
     expect(validateEventTuple([EventId.MatchEnd, [0, 1, 1]])).toBeNull();
   });
 
@@ -151,14 +151,14 @@ describe('T-036 NETWORK_PROTOCOL §§5.3,7 event timeline', () => {
     const events = new WorldEventTimeline(remotes);
     const own = events.ingest({ tick: 11, events: [
       [EventId.ProjectileSpawn, 'p1', 0, WeaponId.PulsePistol,
-        0, 0, 0, 11, 0, 1, 0],
+        0, 0, 0, 11, 0, 1, 0, 0, 0, 0],
       [EventId.ProjectileHit, 'p1', 1, 9, 1, 1, 0],
     ] }, 'local');
     expect(own).toEqual([{ kind: 'ownHit', tick: 11,
       source: 'projectile', targetId: 'remote', damage: 9, tags: 1 }]);
     const incoming = events.ingest({ tick: 12, events: [
       [EventId.ProjectileSpawn, 'p2', 1, WeaponId.PulsePistol,
-        0, 0, 0, 12, 0, 2, 0],
+        0, 0, 0, 12, 0, 2, 0, 0, 0, 0],
       [EventId.ProjectileHit, 'p2', 0, 4, 2, 0, 0],
       [EventId.Death, 0, 1, WeaponId.PulsePistol,
         Form.Runner, Form.Beast, 4, Form.Beast],
@@ -180,7 +180,7 @@ describe('T-036 NETWORK_PROTOCOL §§5.3,7 event timeline', () => {
     events.ingest({ tick: 10, events: [
       [EventId.RailShotFired, 1, 0, 0, 2, 0],
       [EventId.ProjectileSpawn, 7, 1, WeaponId.PulsePistol,
-        0, 0, 0, 10, 0, 1, 0],
+        0, 0, 0, 10, 0, 1, 0, 0, 0, 0],
     ] }, 'local');
     remotes.ingest(snapshot(12, [player('new', 1)]), 120);
     expect(events.due(12).map((entry) => entry.actorId)).toEqual(['old', 'old']);
@@ -200,7 +200,7 @@ describe('T-036 NETWORK_PROTOCOL §§5.3,7 event timeline', () => {
     events.ingest({ tick: 11, events: [
       [EventId.BotReplaced, 1, 'new'],
       [EventId.ProjectileSpawn, 'new-shot', 1, WeaponId.PulsePistol,
-        0, 0, 0, 11, 0, 1, 0],
+        0, 0, 0, 11, 0, 1, 0, 0, 0, 0],
     ] }, 'local');
     events.ingest({ tick: 10, events: [
       [EventId.RailShotFired, 1, 0, 0, 1, 0],

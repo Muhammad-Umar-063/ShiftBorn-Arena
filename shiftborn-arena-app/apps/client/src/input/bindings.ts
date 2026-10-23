@@ -2,6 +2,7 @@
 export type InputAction =
   | 'moveNorth' | 'moveSouth' | 'moveWest' | 'moveEast'
   | 'aimNorth' | 'aimSouth' | 'aimWest' | 'aimEast'
+  | 'reload' | 'swap' | 'dagger' | 'sprint'
   | 'fire' | 'ability' | 'morphRunner' | 'morphBeast' | 'morphTurret'
   | 'lockToggle' | 'scoreboard' | 'menu' | 'cameraView'
   | 'debugOverlay' | 'hitboxView' | 'devConsole'
@@ -13,8 +14,8 @@ export const GAME_BINDINGS: Readonly<Record<string, readonly InputAction[]>> = O
   ArrowLeft: ['aimWest'], ArrowRight: ['aimEast'],
   Mouse0: ['fire'], Space: ['fire'],
   Digit1: ['morphRunner'], Digit2: ['morphBeast'], Digit3: ['morphTurret'],
-  KeyE: ['ability'], KeyQ: ['lockToggle'], Tab: ['scoreboard'],
-  Escape: ['menu'], KeyP: ['menu'], KeyV: ['cameraView'],
+  KeyE: ['ability'], KeyQ: ['swap'], KeyR: ['reload'], ShiftLeft: ['sprint'], ShiftRight: ['sprint'], Tab: ['scoreboard'],
+  Escape: ['menu'], KeyP: ['menu'], KeyC: ['cameraView'], KeyV: ['dagger'],
   F3: ['debugOverlay'], F4: ['hitboxView'], Backquote: ['devConsole'],
 });
 
@@ -27,7 +28,7 @@ export const MENU_BINDINGS: Readonly<Record<string, readonly InputAction[]>> = O
 });
 
 export const RESERVED_CODES = Object.freeze([
-  'Mouse2', 'KeyR', 'KeyX', 'KeyF', 'KeyZ', 'KeyB',
+  'Mouse2', 'KeyX', 'KeyF', 'KeyZ', 'KeyB',
 ] as const);
 
 export function actionsForCode(code: string, context: 'gameplay' | 'menu' = 'gameplay'):

@@ -10,7 +10,7 @@ Approved design and technical decisions for **Shiftborn Arena**. This file is bi
 - Only Hamza (project owner) approves decisions. A coding agent never adds an `Approved` entry on its own. Agents propose changes in `OPEN_QUESTIONS.md`.
 - Status values: `Proposed` (an agent filled a reserved entry from section 5; Hamza approves it only after reviewing the evidence), `Approved`, `Approved (provisional)` (stands until a playtest or spike says otherwise), `Superseded by D-xxx`.
 
-Last updated: 2026-10-21.
+Last updated: 2026-10-23.
 
 ---
 
@@ -104,7 +104,7 @@ Last updated: 2026-10-21.
 
 ### D-022 Excluded from the prototype
 - **Decision:** The prototype has no crates or crate weapons, characters or character kits, Ultimates or Overdrive, bounty or Wanted, arena events, hazards, jump pads, grapple anchors, Reactor War, King of the Morph, Boot Camp, accounts or XP, touch or controller controls, CrazyGames SDK, art beyond greybox, music. Full list and where each item returns: `docs/PROTOTYPE_SCOPE.md` §4.
-- **Status:** Approved.
+- **Status:** Approved. Partly superseded by D-075 (six guns as loot) and D-081 (art and audio).
 
 ### D-023 Zone Frenzy scoring in the prototype
 - **Decision:** A KO is worth 5 points. A player alone in the Surge Zone earns 1 point per second (0.5 per second as a Turret). There is no Wanted bonus in the prototype because bounty is excluded (D-022).
@@ -177,11 +177,11 @@ Last updated: 2026-10-21.
 
 ### D-044 Input schemes
 - **Decision:** The prototype supports mouse and keyboard, and keyboard only (with soft lock-on). Touch and controller are production work. Production controller bindings: left trigger is crate weapon only, LB opens the morph wheel, D-pad left/up/right morphs directly.
-- **Status:** Approved.
+- **Status:** Approved. Partly superseded by D-079 (fragile assist replaces soft lock-on).
 
 ### D-045 Art and audio in the prototype
 - **Decision:** Greybox only (primitive shapes, flat colors, one outline pass). No purchased or commissioned art before approval. Sound effects are synthesized in code with Web Audio; no music.
-- **Status:** Approved.
+- **Status:** Superseded by D-081 for the 2026-10-23 release scope.
 
 ### D-046 Coordinates and units
 - **Decision:** Simulation coordinates: x east, y north, meters, origin at the map center. Angles in radians, 0 = east, counter-clockwise positive. Three.js world mapping: sim (x, y) → world (x, 0, -y), so north is "up" on screen with the fixed camera. `docs/BALANCE.md` stores human units (degrees, seconds); `packages/shared` converts them once at load.
@@ -280,7 +280,7 @@ TypeScript 7.0.2 is the newest release, but typescript-eslint 8.71.2 declares su
 ### D-065 Interim FPP mouse controls
 
 - **Decision:** Keep FPP mouse aim disabled until a detailed rule is approved. Mouse movement does not change aim in FPP. Keep the FPP camera and V switch. Show the system cursor and hide the aiming reticle in FPP. Do not use pointer lock. This interim behavior does not block T-034 and does not establish complete FPP playability; the future control rule remains open.
-- **Status:** Approved by user in conversation, 2026-10-21 (OQ-017 option C).
+- **Status:** Superseded by D-078 (2026-10-23). Previously approved by user in conversation, 2026-10-21 (OQ-017 option C).
 - **Task:** T-034; follow-up OQ-018.
 
 ### D-066 Staged T-031 acceptance
@@ -312,3 +312,85 @@ TypeScript 7.0.2 is the newest release, but typescript-eslint 8.71.2 declares su
 - **Decision:** Use OQ-021 option A. Version the protocol and mirror the local player's three weapon fire timers, last button sequence and held mask, last shot sequence and next shot index. Mirror `ccImmuneEndTick` as well because the shared `LocalPredictState` requires it for a complete authoritative restore. Reject an incomplete prediction projection rather than retaining stale predicted fields. The client continues to predict only the D-036 permitted subset.
 - **Status:** Approved by user in conversation, 2026-10-21 (OQ-021 option A).
 - **Task:** T-035.
+
+### D-072 Durable shot intent identity through input catch-up
+
+- **Decision:** Use OQ-022 option A. Input protocol version 3 carries up to eight ascending, unacknowledged predicted shot sequence tags in each redundant input frame. A client registers a tag after predicting a shot, repeats it in subsequent frames for the existing 500 ms local confirmation window, and removes it on an own `projectileSpawn` confirmation or lifecycle reset. The server still applies the newer movement, aim and held buttons during two-frame catch-up. On an actual accepted shot, it selects the oldest carried tag newer than its last resolved tag and no newer than the applied frame; if none is eligible, it uses the applied input sequence. Only an accepted shot resolves a tag. A fallback shot resolves through its applied sequence, preventing a later stale tag from being attached to another shot. Scatter pellets retain consecutive `shotIdx` values under the selected sequence. Exact `(owner, inputSeq, shotIdx)` matching remains mandatory; rejected predicted visuals fade under §8.2. This supersedes D-069 only for the sequence chosen for a tagged human shot; D-069's index allocation and repeated-sequence rule remain.
+- **Status:** Approved by user in conversation, 2026-10-21 (OQ-022 option A).
+- **Task:** T-037. A new protocol version is required because the input frame wire changes.
+
+## 6. Release request of 2026-10-23
+
+The owner's request of 2026-10-23 supersedes the conflicting three-minute, starting-gun, unrestricted-form and greybox-only requirements for this scope. `docs/CHANGE_CONTRACT.md` maps each decision below to rules, numbers, protocol, tests and owners. Numbers chosen by the lead engineer under D-077 live in `docs/BALANCE.md` and are listed for owner review in OQ-024; they are not owner decisions.
+
+### D-073 Ten-minute active matches
+
+- **Decision:** PLAYING lasts 600 seconds: 18,000 simulation ticks at the existing 30 Hz. COUNTDOWN and RESULTS keep their own lengths and never count toward active time. Match time, phase changes and termination come only from authoritative ticks. The tick on which PLAYING ends is the last tick on which inputs, hits, kills, unlocks and pickups apply (GR-2.7).
+- **Supersedes:** GR-2.2's 180-second PLAYING length and BALANCE's 150 to 240 second tuning range for `match.durationS`. Any later change to 600 needs the owner.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** CHANGE_CONTRACT stage S1.
+
+### D-074 Runner-only start, dagger and kill unlocks
+
+- **Decision:** Every match starts with every player as Runner, with only Runner unlocked, carrying the dagger and no guns. Beast unlocks at 3 cumulative credited KOs in the current match and Turret at 6. Death does not reset progress. An unlock permits morphing; it never forces a morph and never grants a gun. Only authoritative KO credit (GR-11.1) counts; assists, points and client reports never count. Existing morph costs, cooldowns and eligibility still apply, and a locked target is denied. Progress, unlocks and gear reset at every COUNTDOWN. A fresh entrant (late join, or a human taking a bot's seat) starts fresh. A reconnecting human and a proxy keep the seat's state; a bot continuing a departed human's seat continues that life (BOT_SPEC §9.1).
+- **Supersedes:** GR-2.4 and GR-11.6 only where they let any form be used from the start, and the always-available form weapons of GR-4.1 and GR-7. Morph rules GR-5 otherwise remain.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** CHANGE_CONTRACT stage S2.
+
+### D-075 Random loot, automatic pickup and two gun slots per form
+
+- **Decision:** Six guns are map loot: Runner Pulse Pistol (tier 1) and Ricochet Disc (tier 2), Beast Scatter Cannon (tier 1) and Slug Cannon (tier 2), Turret Rail Repeater (tier 1) and Arc Mortar (tier 2). Loot positions are random on every map, re-rolled every match and again whenever an item is replenished; there are no fixed loot places. Walking over an item collects it; there is no pickup key. Each form holds one gun per tier, so a player can own all six. Guns for locked forms are stored and become usable only in the matching unlocked form. Picking up a gun the player already owns adds ammunition to that gun's reserve up to its cap; at the cap the item stays on the floor. The server owns placement, claims and inventory; no client position, inventory or message can grant an item.
+- **Supersedes:** D-022 only for these six guns as loot. Crates, crate weapons, drones and every other `WEAPON_ART.md` weapon stay excluded.
+- **Status:** Approved by user in conversation, 2026-10-23 (question batch: automatic pickup, two slots per form with duplicate refill, random placement every match on all maps).
+- **Task:** CHANGE_CONTRACT stage S2.
+
+### D-076 Ammunition, reloads and retained gear
+
+- **Decision:** Every gun has authoritative magazine and reserve counts and a timed, server-owned reload (R, or automatic when the magazine empties). Death and respawn keep unlocks, owned guns and exactly the magazine and reserve of every gun at the moment death is finalized, including stored guns for other forms. An active reload is cancelled on death without moving ammunition. Death, respawn, reconnect, morphing and weapon switching never refill ammunition, duplicate pickups or complete a reload. Transient state (fire timers, heat, cooldowns, status) still follows GR-11.6. Turret heat remains.
+- **Status:** Approved by user in conversation, 2026-10-23 ("Respawn refills ammo: no, restore exactly the same remaining ammo").
+- **Task:** CHANGE_CONTRACT stage S2.
+
+### D-077 Higher-damage tier 2 weapons
+
+- **Decision:** Use the six weapon identities from `WEAPON_ART.md`, plus a new starting dagger. The owner authorizes the lead engineer to calculate and balance one higher-damage weapon per form, designated tier 2 in documents and UI: Ricochet Disc, Slug Cannon and Arc Mortar. Tier 1 values stay unchanged unless a further approved change is needed. The higher-damage claim must hold under the stated benchmark in `docs/BALANCE.md` §9.5, with its tradeoffs reported. `WEAPON_ART.md` is a reference, not a source of approvals or decision numbers.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** CHANGE_CONTRACT stage S2.
+
+### D-078 Controls and facing-relative camera basis
+
+- **Decision:** WASD moves relative to facing: W forward along aim, S back, A and D strafe. Shift+W sprints. Clicking the canvas captures the mouse with pointer lock; horizontal mouse motion turns the player, and Esc releases the lock. Left and Right arrows turn smoothly. The same basis applies in TPP and FPP. Other bindings: arrows aim, 1/2/3 morph, R reload, E form ability, Space keyboard fire, LMB fire, Tab scoreboard, C camera view, Esc or P personal menu, Q or mouse wheel swaps the current form's guns, V strikes with the dagger.
+- **Supersedes:** D-065 (pointer lock is now allowed and FPP mouse turning is enabled) and answers OQ-018. Supersedes the V camera and Q lock bindings in `CONTROLS_UI.md` §2.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** T-120, T-034 follow-up (Codex client wiring with Claude's numerical aim model).
+
+### D-079 Fragile aim assist replaces soft lock-on
+
+- **Decision:** Aim assistance is weak, breakable input assistance. It acquires only on a firing action when raw manual aim is already very close to an eligible, visible enemy within range. Retention is measured from the player's raw input, not the assisted angle, so enemy movement breaks it unless the player tracks manually. Release has a reacquisition delay. It has no target cycling, lead, autonomous tracking, homing, hitbox or damage change, and the Turret turn cap still applies. Thresholds and rates live in shared balance data. It still runs on the client and produces ordinary aim angles (D-037). The input scheme is recorded for analysis but never treated as proof of honesty.
+- **Supersedes:** The soft lock-on of `CONTROLS_UI.md` §3.3 and §3.4, its Q binding and the `softLock.*` keys; D-044 only for "keyboard only with soft lock-on".
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** T-121.
+
+### D-080 Personal menu keeps the match running
+
+- **Decision:** Esc or P opens a local menu. Gameplay input becomes neutral and held input is cleared on menu, blur and focus transitions. The server keeps running; the player stays damageable and can die. There is no pause, no immunity and no immediate proxy. The ordinary AFK rule (`NETWORK_PROTOCOL.md` §9.4) still applies to a player who stays in the menu; the hidden-tab and disconnect rules are unchanged.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** T-065.
+
+### D-081 Art and audio for this release
+
+- **Decision:** For this release scope, the greybox-only rule no longer applies. Art and audio may be integrated by Codex. Every asset records its source and license before publication, the client size budget still applies, and art never changes timing, hitboxes or numbers.
+- **Supersedes:** D-045 and the "art beyond greybox" item of D-022 for this scope.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** Codex art/audio integration stages.
+
+### D-082 Requested release scope
+
+- **Decision:** This request authorizes the specified gameplay changes and the work needed to complete them, including remaining mandatory gameplay, server and bot tasks, and only these production portions: scope reconciliation, art and audio integration, platform integration, essential safety and operations, and launch verification. It is not approval of every production epic. It does not add Ultimates, crates, accounts, progression currencies, paid upgrades, seasons or extra modes. Human Fun Gate, playtest and approval gates remain; D-070 is still recorded only by the owner. Hosting choice, credentials, domain and any spending need separate owner approval.
+- **Status:** Approved by user in conversation, 2026-10-23.
+- **Task:** CHANGE_CONTRACT §11 task inventory.
+
+### D-083 Owner review of release defaults and map
+
+- **Decision:** The owner approves all nine OQ-024 defaults, including dagger and sprint parameters, indirect mortar flight with blast occlusion, ammunition/reloads, swap/draw delay, aim distance controls, loot counts/replenishment and keyboard-only fragile assist. Adapt Lion’s Claw as the default flat eight-player map (OQ-023).
+- **Status:** Approved by user in conversation, 2026-10-23, during Codex takeover.
+- **Task:** T-047 to T-049, T-057, T-058; map adaptation follows validation V1 to V9.

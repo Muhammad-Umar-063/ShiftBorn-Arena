@@ -1,4 +1,5 @@
 import { Form, Phase } from '@shiftborn/shared';
+import { zeroGunTimers } from './loadout.js';
 import { emitEvent } from './events.js';
 import type { Vec2 } from './math/vec2.js';
 import { resetMorphForRespawn } from './morph.js';
@@ -32,11 +33,11 @@ export function respawnPlayer(
     [Form.Beast]: tick,
     [Form.Turret]: tick,
   };
-  player.weapon = {
-    [Form.Runner]: { nextShotIn: 0 },
-    [Form.Beast]: { nextShotIn: 0 },
-    [Form.Turret]: { nextShotIn: 0 },
-  };
+  // GR-11.6, D-076: transient gun state resets; ownership and ammunition stay.
+  player.gunTimers = zeroGunTimers();
+  player.reload = null;
+  player.melee = null;
+  player.swapReadyTick = tick;
   player.heat = 0;
   player.overheatEndTick = tick;
   player.stunEndTick = tick;

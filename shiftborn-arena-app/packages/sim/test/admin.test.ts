@@ -2,7 +2,8 @@ import { BALANCE, DERIVED, Form, GREYBOX_V1, Phase } from '@shiftborn/shared';
 import { describe, expect, it } from 'vitest';
 import {
   administrativelyEliminate, administrativelyTeleport, setAdministrativeFlux,
-  setAdministrativeForm, setAdministrativeHealth, stopOrdinaryBots,
+  setAdministrativeForm, setAdministrativeHealth, setAdministrativeUnlockAll,
+  stopOrdinaryBots,
 } from '../src/admin.js';
 import { startDash } from '../src/ability.js';
 import { circleBoxPushOut } from '../src/math/geometry.js';
@@ -53,6 +54,18 @@ describe('T-029 administrative sim mutations', () => {
     expect(world.events.every((event) => event.type !== 'morphStart')).toBe(true);
     expect(setAdministrativeHealth(world, human, 0.75)).toBe(true);
     expect(human.hpFrac).toBe(0.75);
+  });
+
+  it('AT-SEC-03 /unlock opens every form without KO credit, progress or events', () => {
+    const { world, human } = setup();
+    const stats = structuredClone(human.stats);
+    world.events.length = 0;
+    setAdministrativeUnlockAll(human);
+    expect(human.unlocked).toEqual({
+      [Form.Runner]: true, [Form.Beast]: true, [Form.Turret]: true,
+    });
+    expect(human.stats).toEqual(stats);
+    expect(world.events).toEqual([]);
   });
 
   it('AT-SEC-03 /hp 0 and /kill share credit-free elimination and delayed respawn', () => {

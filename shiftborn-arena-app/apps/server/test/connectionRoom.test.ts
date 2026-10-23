@@ -146,11 +146,11 @@ async function join(server: ColyseusTestServer, room: LifecycleRoom) {
 }
 
 function input(seq: number, moveX = 0, buttons = 0): number[] {
-  return [seq, moveX, 0, 0, buttons, 0];
+  return [seq, moveX, 0, 0, buttons, 0, 120, ...Array(8).fill(0)];
 }
 
 describe('AT-NET-11 real socket reconnect and expiry', () => {
-  it('retains the same seat, life, host and input sequence across a drop', async () => {
+  it('AT-LOAD-07 retains the same seat, life, unlocks, host and input sequence across a drop', async () => {
     await withRoom<LifecycleRoom>(LifecycleRoom, async (room, server) => {
       const client = await join(server, room);
       const id = client.sessionId;
@@ -162,6 +162,7 @@ describe('AT-NET-11 real socket reconnect and expiry', () => {
       if (player === null || player === undefined)
         throw new Error('missing player');
       player.stats.kos = 4;
+      player.unlocked.beast = true;
       player.hpFrac = 0.37;
       const originalSeat = player.seat;
       room.mark();
@@ -184,6 +185,7 @@ describe('AT-NET-11 real socket reconnect and expiry', () => {
       expect(room.testWorld.players[originalSeat]).toBe(player);
       expect(player.hpFrac).toBe(0.37);
       expect(player.stats.kos).toBe(4);
+      expect(player.unlocked).toEqual({ runner: true, beast: true, turret: false });
       expect(player.controller).toBe(Controller.Human);
       expect(room.state.players.get(id)?.connected).toBe(true);
       expect(room.controlSends).toEqual([{ id, controller: Controller.Human }]);

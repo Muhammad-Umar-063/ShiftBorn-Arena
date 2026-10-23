@@ -17,9 +17,10 @@ root.append(stage, toolbar, info);
 const renderer = new ArenaRenderer(stage, () => { info.textContent = 'WebGL failed'; });
 let fixtureTick = 0;
 let fixtureAt = performance.now();
+let liveClock = false;
 // Scripted visual fixtures supply their own tick source; production uses Connection.clock.
 renderer.setClockEstimate(() => fixtureTick +
-  (performance.now() - fixtureAt) * BALANCE.tick.rateHz / 1000 +
+  (liveClock ? (performance.now() - fixtureAt) * BALANCE.tick.rateHz / 1000 : 0) +
   BALANCE.net.interpDelayMs * BALANCE.tick.rateHz / 1000);
 
 const basePlayer = (id: string, name: string, seat: number, x: number, y: number,
@@ -124,6 +125,7 @@ function show(snapshot: EntitySnapshot, events: readonly PresentationEvent[] = [
 }
 function select(kind: string): void {
   if (timer !== null) { clearInterval(timer); timer = null; }
+  liveClock = kind === 'live';
   if (kind === 'live') {
     const world = createWorld({ map: GREYBOX_V1, roomSeed: 42, mode: Mode.Frenzy,
       initialPlayers: [{ id: 'local', seat: 0, name: 'YOU', isBot: false },
@@ -132,7 +134,7 @@ function select(kind: string): void {
     timer = setInterval(() => {
       const buttons = world.tick === 95 ? InputButton.MorphBeast
         : world.tick === 125 ? InputButton.Ability : 0;
-      const frame: InputFrame = { seq, moveX: world.tick % 90 < 45 ? 127 : -127,
+      const frame: InputFrame = { aimDist: 120, seq, moveX: world.tick % 90 < 45 ? 127 : -127,
         moveY: 0, aim: 0, buttons, aimSource: AimSource.Mouse };
       const idle: InputFrame = { ...frame, moveX: 0, buttons: 0 };
       step(world, [frame, idle], {}); seq += 1;

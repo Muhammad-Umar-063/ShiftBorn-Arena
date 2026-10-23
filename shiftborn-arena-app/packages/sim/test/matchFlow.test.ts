@@ -37,7 +37,7 @@ function allZero(value: unknown): boolean {
 }
 
 describe('AT-MATCH-01 exact phase lifecycle', () => {
-  it('executes 90/5400/450 ticks and transitions at exclusive boundaries', () => {
+  it('D-073 executes 90/18000/450 ticks and transitions at exclusive boundaries', () => {
     const world = createWorld({
       map: GREYBOX_V1,
       roomSeed: 21,
@@ -76,7 +76,7 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
       if (events.some((event) => event.type === 'phase'))
         phaseEventTicks.push(tick);
     }
-    expect(counts).toEqual({ COUNTDOWN: 90, PLAYING: 5400, RESULTS: 450 });
+    expect(counts).toEqual({ COUNTDOWN: 90, PLAYING: 18000, RESULTS: 450 });
     expect(phaseEventTicks).toEqual([
       DERIVED.match.countdownTicks,
       DERIVED.match.countdownTicks + DERIVED.match.durationTicks,
@@ -95,6 +95,7 @@ describe('AT-MATCH-01 exact phase lifecycle', () => {
         type: 'shardSpawn',
         shardId: shard.id,
       })),
+      ...world.loot.map(item => ({ type: 'lootSpawn', lootId: item.id, gun: item.gun, x: item.x, y: item.y })),
     ]);
     expect(world.phase).toBe(Phase.Countdown);
     expect(world.tick).toBe(total + 1);
@@ -191,7 +192,7 @@ describe('AT-MATCH-02 seeded match reset', () => {
     firstPlayer.flux = 0;
     firstPlayer.heat = 5;
     firstPlayer.morph = { target: 'beast', endTick: 20 };
-    firstPlayer.weapon.runner.nextShotIn = 2;
+    firstPlayer.gunTimers.pulsePistol = 2;
     firstPlayer.abilityReadyTick.beast = 100;
     firstPlayer.damageLog.push({ attackerId: 'attacker', tick: 1, amount: 2 });
     firstPlayer.protectedEndTick = 300;
@@ -242,9 +243,7 @@ describe('AT-MATCH-02 seeded match reset', () => {
         world.tick,
         world.tick,
       ]);
-      expect(
-        Object.values(player.weapon).map((weapon) => weapon.nextShotIn),
-      ).toEqual([0, 0, 0]);
+      expect(Object.values(player.gunTimers)).toEqual([0, 0, 0, 0, 0, 0]);
       expect(player.damageLog).toEqual([]);
       expect(allZero(player.stats)).toBe(true);
     }

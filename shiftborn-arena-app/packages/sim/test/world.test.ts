@@ -37,10 +37,11 @@ describe('GR-1.5 deterministic world skeleton', () => {
       'shards',
       'clusters',
       'recentSpawns',
-      'events',
     ] as const) {
       expect(world[field]).toEqual([]);
     }
+    expect(world.events).toEqual(world.loot.map(item => ({ type: 'lootSpawn', lootId: item.id, gun: item.gun, x: item.x, y: item.y })));
+    expect(world.loot).toHaveLength(15);
     expect(JSON.stringify(TEST_OPEN)).toBe(mapBefore);
   });
 

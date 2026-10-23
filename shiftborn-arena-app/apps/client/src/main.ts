@@ -39,11 +39,13 @@ connection.subscribe((event) => {
     app?.recoverInput(event.lastInputSeq);
   }
   else if (event.kind === 'events') app?.showEventBatch(event.batch);
+  else if (event.kind === 'devResult') app?.showDevResult(event.result);
 });
 app = mountClient(root, {
   buildId: clientEnv.buildId,
   launch: connection.launch,
   inputTransport: connection,
+  debugConnection: connection,
   serverTickEstimate: () => connection.clock.estimatedTick(),
   onDispose: () => connection.dispose(),
 });

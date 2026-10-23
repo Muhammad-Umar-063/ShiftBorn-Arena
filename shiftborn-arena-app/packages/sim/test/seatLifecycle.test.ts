@@ -12,7 +12,7 @@ import { handoffPlayerToBot, removePlayer } from '../src/player.js';
 import { removeOwnedProjectiles, spawnProjectile } from '../src/projectiles.js';
 import { createWorld } from '../src/world.js';
 import { projectileRecord } from './fixtures/projectileRecord.js';
-import { makeTestWorld } from './fixtures/makeTestWorld.js';
+import { makeTestWorld, tier1Gun } from './fixtures/makeTestWorld.js';
 
 describe('GR-2.4 and BOT_SPEC §9 initial seat lifecycle', () => {
   it('starts all initial seats with one seeded shuffle and one match initialization', () => {
@@ -122,7 +122,7 @@ describe('GR-2.4 and BOT_SPEC §9 initial seat lifecycle', () => {
     const survivor = world.players[1];
     if (survivor === null || survivor === undefined)
       throw new Error('survivor missing');
-    const recycled = spawnProjectile(world, survivor, 0, 6, 2, 0);
+    const recycled = spawnProjectile(world, survivor, tier1Gun(survivor.form), 0, 6, 2, 0);
     expect(recycled).not.toBeNull();
     expect(recycled?.id).toBe(10);
     expect(recycled?.ownerId).toBe('other');

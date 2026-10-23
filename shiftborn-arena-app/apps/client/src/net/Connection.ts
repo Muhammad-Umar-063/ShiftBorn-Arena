@@ -132,6 +132,18 @@ export class Connection {
 
   get authoritativeState(): AuthoritativeRead | null { return this.current?.state ?? null; }
   get activeRoom(): BufferedRoom<unknown> | null { return this.current?.room ?? null; }
+  get canUseDevConsole(): boolean {
+    return !this.disposed && this.recovery === null &&
+      this.current?.welcome?.devCheatsEnabled === true &&
+      this.current.room?.connection.isOpen === true;
+  }
+
+  sendDevCommand(cmd: string): boolean {
+    if (!this.canUseDevConsole || typeof cmd !== 'string' ||
+      cmd.trim().length === 0) return false;
+    this.current?.room?.send(ClientMessageId.DevCmd, { cmd });
+    return true;
+  }
 
   launch = (intent: ConnectionIntent, attempt: ConnectionAttempt): void => {
     if (this.disposed || attempt.signal.aborted) return;
@@ -240,7 +252,8 @@ export class Connection {
     });
     message(ServerMessageId.DevResult, (value) => {
       const result = decodeDevResult(value);
-      if (result !== null && this.current === op) this.emit({ kind: 'devResult', result });
+      if (result !== null && this.current === op)
+        this.emit({ kind: 'devResult', result });
     });
     const stateChanged = (state: unknown): void => this.onState(op, state);
     const dropped = (code: number): void => this.onClosed(op, code);

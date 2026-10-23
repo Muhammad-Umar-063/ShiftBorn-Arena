@@ -1,5 +1,6 @@
 import type { Box, MapData } from '@shiftborn/shared';
 import { circleBoxPushOut } from '../math/geometry.js';
+import { lootCandidates } from '../loot.js';
 import type { Vec2 } from '../math/vec2.js';
 
 // ARCH §4.5: one static wall grid cell spans exactly four sim metres.
@@ -10,7 +11,7 @@ export interface WallCollisionGrid {
   readonly cells: Record<string, number[]>;
 }
 
-export type MapRuntime = MapData & { readonly wallGrid: WallCollisionGrid };
+export type MapRuntime = MapData & { readonly wallGrid: WallCollisionGrid; readonly lootCandidates: readonly Vec2[] };
 
 function cell(x: number): number {
   return Math.floor(x / WALL_GRID_CELL_SIZE_M);
@@ -37,7 +38,7 @@ export function createMapRuntime(map: MapData): MapRuntime {
       }
     }
   });
-  return { ...map, wallGrid: { cellSizeM: WALL_GRID_CELL_SIZE_M, cells } };
+  return { ...map, lootCandidates: lootCandidates(map), wallGrid: { cellSizeM: WALL_GRID_CELL_SIZE_M, cells } };
 }
 
 function boxesTouch(a: Box, b: Box): boolean {

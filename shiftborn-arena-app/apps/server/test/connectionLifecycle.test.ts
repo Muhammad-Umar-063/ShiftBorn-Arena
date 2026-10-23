@@ -59,21 +59,23 @@ describe('AT-NET-13 meaningful input and AFK thresholds', () => {
     const queue = new InputQueue(() => now);
     expect(
       queue
-        .receiveDetailed([1, 1, 0, 0, 0, 0])
+        .receiveDetailed([1, 1, 0, 0, 0, 0, 120, ...Array(8).fill(0)])
         .accepted.map((item) => item.frame.seq),
     ).toEqual([1]);
-    expect(queue.receiveDetailed([1, 1, 0, 0, 0, 0]).accepted).toEqual([]);
-    expect(queue.receiveDetailed([0, 1, 0, 0, 0, 0]).accepted).toEqual([]);
+    expect(queue.receiveDetailed([1, 1, 0, 0, 0, 0, 120, ...Array(8).fill(0)]).accepted).toEqual([]);
+    expect(queue.receiveDetailed([0, 1, 0, 0, 0, 0, 120, ...Array(8).fill(0)]).accepted).toEqual([]);
     expect(queue.receiveDetailed(['bad']).accepted).toEqual([]);
     for (let seq = 2; seq <= BALANCE.net.maxInputsPerS; seq += 1)
-      queue.receiveDetailed([seq, 0, 0, 0, 0, 0]);
+      queue.receiveDetailed([seq, 0, 0, 0, 0, 0, 120, ...Array(8).fill(0)]);
     expect(
-      queue.receiveDetailed([BALANCE.net.maxInputsPerS + 1, 1, 0, 0, 0, 0])
+      queue.receiveDetailed([BALANCE.net.maxInputsPerS + 1, 1, 0, 0, 0, 0,
+        120, ...Array(8).fill(0)])
         .accepted,
     ).toEqual([]);
     now = 2000;
     expect(
-      queue.receiveDetailed([BALANCE.net.maxInputsPerS + 2, 1, 0, 0, 0, 0])
+      queue.receiveDetailed([BALANCE.net.maxInputsPerS + 2, 1, 0, 0, 0, 0,
+        120, ...Array(8).fill(0)])
         .accepted,
     ).toHaveLength(1);
   });

@@ -1,10 +1,12 @@
 import {
-  Controller,
+  Controller, BALANCE, clampAimDistance,
   DERIVED,
   InputButton,
   Phase,
+  WeaponId,
   type InputFrame,
 } from '@shiftborn/shared';
+import { advanceLoot } from './loot.js';
 import { advanceAim } from './aim.js';
 import { advanceInputHistory } from './inputHistory.js';
 import {
@@ -18,7 +20,7 @@ import {
 import { finalizeDeaths } from './death.js';
 import type { SimEvent } from './events.js';
 import { emitEvent } from './events.js';
-import { advanceMovement, decodeMoveDirection } from './movement.js';
+import { advanceMovement, decodeMoveDirection, canSprint } from './movement.js';
 import type { Vec2 } from './math/vec2.js';
 import {
   cancelMorphOnDeath,
@@ -39,6 +41,8 @@ import {
   fireProjectiles,
   type Projectile,
 } from './projectiles.js';
+import { resolveMeleeStrike } from './melee.js';
+import { cancelReload } from './weaponEvents.js';
 import {
   advanceWeaponState,
   advanceShotSequence,
@@ -81,7 +85,9 @@ const inputSystem: System = (world, context) => {
     // applying movement/aim or advancing the T-012 lastInputSeq field.
     if (!PHASE_POLICY[world.phase].input) continue;
     context.fireHeldBySeat[seat] = (frame.buttons & InputButton.Fire) !== 0;
-    context.inputSeqBySeat[seat] = frame.seq;
+    context.inputSeqBySeat[seat] = frame.shotIntentSeq !== undefined &&
+      Number.isSafeInteger(frame.shotIntentSeq) && frame.shotIntentSeq > 0 &&
+      frame.shotIntentSeq <= frame.seq ? frame.shotIntentSeq : frame.seq;
     context.directions[seat] = decodeMoveDirection(frame.moveX, frame.moveY);
     player.lastInputSeq = frame.seq;
     if (
@@ -91,6 +97,7 @@ const inputSystem: System = (world, context) => {
     ) {
       player.aim = advanceAim(player, frame.aim);
       player.aimSource = frame.aimSource;
+      player.aimDistM = clampAimDistance((frame.aimDist ?? BALANCE.aimDistance.defaultM * 10) / 10);
     }
   }
 };
@@ -133,6 +140,8 @@ const morphSystem: System = (world, context) => {
     }
     player.flux -= decision.cost;
     player.morph = { target, endTick: decision.endTick };
+    // GR-5.3: a morph start cancels any reload without moving ammunition.
+    cancelReload(world, player);
     emitEvent(world, {
       type: 'morphStart',
       seat,
@@ -161,6 +170,8 @@ const abilityStartSystem: System = (world, context) => {
     player.ability = ability;
     player.vel = { x: 0, y: 0 };
     endSpawnProtection(player, world.tick);
+    // GR-8: an ability start cancels any reload without moving ammunition.
+    cancelReload(world, player);
     emitEvent(world, {
       type: 'abilityStart',
       seat,
@@ -202,6 +213,8 @@ const movementSystem: System = (world, context) => {
   for (let seat = 0; seat < world.players.length; seat += 1) {
     const player = world.players[seat];
     if (player === null || player === undefined) continue;
+    player.sprinting = canSprint(player, context.directions[seat] ?? { x: 0, y: 0 },
+      context.inputSeqBySeat[seat] === -1 ? 0 : player.lastHeldButtons, world.phase, world.tick);
     if (player.ability !== null) continue;
     const frozen =
       !PHASE_POLICY[world.phase].movement ||
@@ -235,46 +248,74 @@ const weaponsSystem: System = (world, context) => {
     const player = world.players[seat];
     if (player === null || player === undefined) continue;
     const held = context.fireHeldBySeat[seat] ?? false;
-    const result = advanceWeaponState(player, world.phase, world.tick, held);
-    if (result.overheated)
-      emitEvent(world, {
-        type: 'overheat',
-        seat,
-        endTick: player.overheatEndTick,
-      });
-    if (!result.fired) continue;
-    const inputSeq = context.inputSeqBySeat[seat] ?? player.lastInputSeq;
-    const shotSequence = advanceShotSequence(player, inputSeq, player.form);
-    player.lastShotInputSeq = inputSeq;
-    player.nextShotIdx = shotSequence.nextShotIdx;
-    const requestedAdvance = context.spawnAdvanceTicksBySeat?.[seat] ?? 0;
-    const advanceTicks =
-      player.controller === Controller.Human && !player.isBot
-        ? Math.min(
-            Math.max(
-              0,
-              Number.isFinite(requestedAdvance)
-                ? Math.trunc(requestedAdvance)
-                : 0,
-            ),
-            // GR-7.9: server has already converted latency into whole ticks.
-            // The sim applies only the documented cap.
-            DERIVED.weapons.spawnAdvanceMaxTicks,
-          )
-        : 0;
-    const fired = fireProjectiles(
-      world,
-      player,
-      inputSeq,
-      shotSequence.firstShotIdx,
-      advanceTicks,
-    );
-    for (const projectile of fired) spawned.push({ projectile, advanceTicks });
+    const pressed = context.pressedButtonsBySeat[seat] ?? 0;
+    const actions = advanceWeaponState(player, world.phase, world.tick, held, pressed);
+    for (const action of actions) {
+      switch (action.kind) {
+        case 'reloadEnd':
+          emitEvent(world, { type: 'reloadEnd', seat, gun: action.gun,
+            completed: action.completed });
+          break;
+        case 'swap':
+          emitEvent(world, { type: 'weaponSwap', seat, gun: action.gun,
+            readyTick: action.readyTick });
+          break;
+        case 'meleeStart':
+          emitEvent(world, { type: 'meleeStart', seat,
+            strikeTick: action.strikeTick, endTick: action.endTick });
+          break;
+        case 'reloadStart':
+          emitEvent(world, { type: 'reloadStart', seat, gun: action.gun,
+            endTick: action.endTick });
+          break;
+        case 'overheat':
+          emitEvent(world, { type: 'overheat', seat, endTick: action.endTick });
+          break;
+        case 'fire': {
+          const inputSeq = context.inputSeqBySeat[seat] ?? player.lastInputSeq;
+          const shotSequence = advanceShotSequence(player, inputSeq, action.gun);
+          player.lastShotInputSeq = inputSeq;
+          player.nextShotIdx = shotSequence.nextShotIdx;
+          const requestedAdvance = context.spawnAdvanceTicksBySeat?.[seat] ?? 0;
+          // GR-7.9: Arc Mortar shells are never advanced.
+          const advanceTicks =
+            player.controller === Controller.Human && !player.isBot &&
+            action.gun !== WeaponId.ArcMortar
+              ? Math.min(
+                  Math.max(
+                    0,
+                    Number.isFinite(requestedAdvance)
+                      ? Math.trunc(requestedAdvance)
+                      : 0,
+                  ),
+                  // GR-7.9: server has already converted latency into whole ticks.
+                  // The sim applies only the documented cap.
+                  DERIVED.weapons.spawnAdvanceMaxTicks,
+                )
+              : 0;
+          const fired = fireProjectiles(
+            world,
+            player,
+            action.gun,
+            inputSeq,
+            shotSequence.firstShotIdx,
+            advanceTicks,
+          );
+          for (const projectile of fired) spawned.push({ projectile, advanceTicks });
+          break;
+        }
+      }
+    }
   }
   for (const { projectile, advanceTicks } of spawned) {
     for (let extra = 0; extra < advanceTicks; extra += 1) {
       if (!advanceProjectile(world, projectile)) break;
     }
+  }
+  // GR-7.31: strikes resolve after every firing decision and spawn advance.
+  for (const player of world.players) {
+    if (player?.alive === true && player.melee?.strikeTick === world.tick)
+      resolveMeleeStrike(world, player);
   }
 };
 
@@ -297,7 +338,7 @@ export const TICK_SYSTEMS = [
   { name: 'deaths', run: finalizeDeaths },
   { name: 'respawns', run: respawnDuePlayers },
   { name: 'statusTimers', run: emptySystem },
-  { name: 'fluxAndShards', run: advanceFluxAndShards },
+  { name: 'fluxAndShards', run: (world: World) => { advanceFluxAndShards(world); advanceLoot(world); } },
   { name: 'zone', run: emptySystem },
   { name: 'cover', run: emptySystem },
   { name: 'output', run: outputSystem },

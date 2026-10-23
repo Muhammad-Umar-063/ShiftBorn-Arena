@@ -1,12 +1,12 @@
 // packages/shared/src/balance.ts
 // Single source of truth for every gameplay number. Human units. See docs/BALANCE.md.
 export const BALANCE = {
-  version: 'proto-3',
+  version: 'proto-4',
   tick: { rateHz: 30, patchRateHz: 20 },
   match: {
     seats: 8,
     countdownS: 3,
-    durationS: 180,
+    durationS: 600,
     resultsS: 15,
     lateJoinCutoffS: 60,
     respawnS: 3,
@@ -15,6 +15,10 @@ export const BALANCE = {
     assistWindowS: 5,
   },
   movement: { accelMps2: 60, maxSubstepM: 0.25 },
+  // GR-4.16 (D-078): no stamina; Turret speed stays 0.
+  sprint: { speedMult: 1.3, maxForwardAngleDeg: 60 },
+  // GR-4.18: aim distance from the input frame, used by the Arc Mortar.
+  aimDistance: { minM: 2, maxM: 24, defaultM: 12 },
   forms: {
     runner: {
       maxHp: 80,
@@ -61,12 +65,32 @@ export const BALANCE = {
   weapons: {
     muzzleExtraM: 0.1,
     spawnAdvanceMaxMs: 100,
+    // GR-7.16: swap and first-gun draw delay.
+    swapS: 0.4,
     pulsePistol: {
       damage: 9,
       ratePerS: 6,
       rangeM: 14,
       projSpeedMps: 45,
       projRadiusM: 0.15,
+      magazine: 20,
+      reloadS: 1.5,
+      ammoPerPickup: 80,
+      reserveMax: 120,
+    },
+    // D-077 tier 2 Runner gun; BALANCE.md §9.5 benchmark.
+    ricochetDisc: {
+      damage: 24,
+      bounceDamageMult: 1.25,
+      maxBounces: 1,
+      ratePerS: 2.5,
+      rangeM: 20,
+      projSpeedMps: 32,
+      projRadiusM: 0.2,
+      magazine: 8,
+      reloadS: 2,
+      ammoPerPickup: 24,
+      reserveMax: 32,
     },
     scatterCannon: {
       damagePerPellet: 5,
@@ -77,6 +101,22 @@ export const BALANCE = {
       minFalloffMult: 0.5,
       projSpeedMps: 35,
       projRadiusM: 0.1,
+      magazine: 8,
+      reloadS: 2,
+      ammoPerPickup: 24,
+      reserveMax: 32,
+    },
+    // D-077 tier 2 Beast gun.
+    slugCannon: {
+      damage: 50,
+      ratePerS: 1,
+      rangeM: 12,
+      projSpeedMps: 55,
+      projRadiusM: 0.2,
+      magazine: 4,
+      reloadS: 2.5,
+      ammoPerPickup: 12,
+      reserveMax: 16,
     },
     railRepeater: {
       damage: 16,
@@ -89,7 +129,49 @@ export const BALANCE = {
       heatMaxS: 7,
       overheatS: 2,
       heatCoolPerS: 2,
+      magazine: 30,
+      reloadS: 2,
+      ammoPerPickup: 60,
+      reserveMax: 90,
     },
+    // D-077 tier 2 Turret gun: indirect fire, GR-7.26 to GR-7.29.
+    arcMortar: {
+      damage: 75,
+      edgeDamageMult: 0.5,
+      blastRadiusM: 2.5,
+      minRangeM: 8,
+      maxRangeM: 20,
+      flightS: 1,
+      landingNudgeStepM: 0.1,
+      ratePerS: 0.85,
+      magazine: 3,
+      reloadS: 3,
+      ammoPerPickup: 9,
+      reserveMax: 12,
+    },
+    // D-074 starting weapon for every form, GR-7.30 to GR-7.32.
+    dagger: {
+      damage: 25,
+      windupS: 0.1,
+      recoveryS: 0.5,
+      reachM: 0.8,
+      widthM: 0.7,
+    },
+  },
+  // GR-18.2 (D-074): credited KOs in the current match.
+  progression: { beastUnlockKos: 3, turretUnlockKos: 6 },
+  // GR-19 (D-075): random per-match placement, automatic pickup.
+  loot: {
+    tier1PerGun: 3,
+    tier2PerGun: 2,
+    respawnS: 20,
+    pickupExtraRadiusM: 0.5,
+    candidateGridM: 1,
+    minClearanceM: 1.5,
+    minSpacingM: 6,
+    minSpawnPointDistM: 4,
+    minPlayerDistM: 3,
+    placementAttempts: 24,
   },
   abilities: {
     dash: { distanceM: 6, durationS: 0.2, cooldownS: 5 },
@@ -144,13 +226,20 @@ export const BALANCE = {
     previewS: 10,
     pointsPerS: 1,
   },
-  keyboardAim: { turnDegPerS: 720 },
-  softLock: {
-    acquireConeDeg: 60,
-    trackTurnDegPerS: 720,
-    leadFactor: 0.5,
-    breakAfterS: 0.5,
-    releaseHoldS: 0.5,
+  // D-078 client aim model: Left/Right arrows turn, Up/Down change aim distance.
+  keyboardAim: {
+    turnStartDegPerS: 90,
+    turnMaxDegPerS: 300,
+    turnAccelDegPerS2: 600,
+    distRateMps: 10,
+  },
+  // D-079 fragile assist: acquire on fire only, retain from raw aim, no lead.
+  aimAssist: {
+    acquireHalfAngleDeg: 5,
+    retainHalfAngleDeg: 7,
+    maxCorrectionDeg: 3,
+    pullDegPerS: 40,
+    reacquireDelayS: 0.75,
   },
   net: {
     inputRedundancy: 3,

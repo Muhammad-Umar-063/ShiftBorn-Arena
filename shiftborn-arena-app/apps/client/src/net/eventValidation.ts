@@ -1,14 +1,15 @@
-import { AbilityId, BALANCE, Cause, EventId, Form, GREYBOX_V1, Phase,
-  WeaponId, type EncodedEvent } from '@shiftborn/shared';
+import { AbilityId, BALANCE, Cause, EventId, Form, GREYBOX_V1, MAX_EVENT_ID,
+  MorphDenialReason, Phase, WeaponId, isGunId, type EncodedEvent } from '@shiftborn/shared';
 
 type Field = 'id' | 'seat' | 'optionalSeat' | 'uint' | 'finite' | 'positive'
   | 'form' | 'ability' | 'weapon' | 'cause' | 'tags' | 'flag'
-  | 'morphReason' | 'point' | 'shardPoint' | 'cover' | 'zone' | 'phase' | 'text';
+  | 'morphReason' | 'point' | 'shardPoint' | 'cover' | 'zone' | 'phase' | 'text'
+  | 'gun';
 
 // NETWORK_PROTOCOL §5.3: each positional payload is checked before any route.
 const FIELDS: Readonly<Record<number, readonly Field[]>> = {
-  [EventId.ProjectileSpawn]: ['id', 'seat', 'weapon', 'finite', 'finite',
-    'finite', 'uint', 'uint', 'uint', 'uint'],
+  [EventId.ProjectileSpawn]: ['id', 'seat', 'gun', 'finite', 'finite',
+    'finite', 'uint', 'uint', 'uint', 'uint', 'uint', 'finite', 'finite'],
   [EventId.ProjectileHit]: ['id', 'seat', 'positive', 'tags', 'finite', 'finite'],
   [EventId.ProjectileImpact]: ['id', 'finite', 'finite'],
   [EventId.ProjectileExpire]: ['id'],
@@ -39,6 +40,17 @@ const FIELDS: Readonly<Record<number, readonly Field[]>> = {
   [EventId.Phase]: ['phase', 'uint'],
   [EventId.MatchEnd]: [],
   [EventId.BotReplaced]: ['seat', 'text'],
+  [EventId.ProjectileBounce]: ['id', 'finite', 'finite', 'finite'],
+  [EventId.MortarBlast]: ['id', 'finite', 'finite'],
+  [EventId.ReloadStart]: ['seat', 'gun', 'uint'],
+  [EventId.ReloadEnd]: ['seat', 'gun', 'flag'],
+  [EventId.WeaponSwap]: ['seat', 'gun', 'uint'],
+  [EventId.MeleeStart]: ['seat', 'uint', 'uint'],
+  [EventId.MeleeStrike]: ['seat', 'optionalSeat', 'positive', 'tags', 'finite',
+    'finite'],
+  [EventId.FormUnlocked]: ['seat', 'form'],
+  [EventId.LootSpawn]: ['id', 'gun', 'finite', 'finite'],
+  [EventId.LootPickup]: ['id', 'seat', 'gun', 'flag'],
 };
 
 function integer(value: unknown, minimum: number, maximum: number): value is number {
@@ -64,20 +76,21 @@ function fieldValid(field: Field, value: unknown): boolean {
     case 'cause': return oneOf(value, Object.values(Cause));
     case 'tags': return integer(value, 0, 7);
     case 'flag': return integer(value, 0, 1);
-    case 'morphReason': return integer(value, 0, 3);
+    case 'morphReason': return integer(value, 0, MorphDenialReason.Locked);
     case 'point': return integer(value, 0, GREYBOX_V1.zonePoints.length - 1);
     case 'shardPoint': return integer(value, 0, GREYBOX_V1.shardPoints.length - 1);
     case 'cover': return integer(value, 0, GREYBOX_V1.cover.length - 1);
     case 'zone': return integer(value, 0, 2);
     case 'phase': return oneOf(value, Object.values(Phase));
     case 'text': return typeof value === 'string' && value.length > 0;
+    case 'gun': return isGunId(value);
   }
 }
 
 /** The cast follows full positional validation; callers receive detached tuples. */
 export function validateEventTuple(value: readonly unknown[]): EncodedEvent | null {
   const id = value[0];
-  if (!integer(id, 1, 30)) return null;
+  if (!integer(id, 1, MAX_EVENT_ID)) return null;
   const fields = FIELDS[id];
   if (fields === undefined) return null;
   if (id === EventId.MatchEnd) {

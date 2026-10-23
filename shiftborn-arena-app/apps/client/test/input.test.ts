@@ -13,8 +13,8 @@ describe('AT-CTRL-01 bindings and reserved actions', () => {
       ArrowUp: 'aimNorth', ArrowDown: 'aimSouth', ArrowLeft: 'aimWest',
       ArrowRight: 'aimEast', Mouse0: 'fire', Space: 'fire',
       Digit1: 'morphRunner', Digit2: 'morphBeast', Digit3: 'morphTurret',
-      KeyE: 'ability', KeyQ: 'lockToggle', Tab: 'scoreboard',
-      Escape: 'menu', KeyP: 'menu', KeyV: 'cameraView',
+      KeyE: 'ability', KeyQ: 'swap', KeyR: 'reload', ShiftLeft: 'sprint', ShiftRight: 'sprint', Tab: 'scoreboard',
+      Escape: 'menu', KeyP: 'menu', KeyC: 'cameraView', KeyV: 'dagger',
       F3: 'debugOverlay', F4: 'hitboxView', Backquote: 'devConsole',
     };
     for (const [code, action] of Object.entries(cases))
@@ -136,7 +136,7 @@ describe('T-034 fixed-rate and shared input packet contract', () => {
     expect(remaining).toBeLessThan(INPUT_STEP_MS);
   });
   it('encodes newest first through shared encode/decode with no reserved bits', () => {
-    const frames: ClientInputFrame[] = [3, 2, 1].map((seq) => ({ seq,
+    const frames: ClientInputFrame[] = [3, 2, 1].map((seq) => ({ aimDist: 120, seq,
       moveX: 127, moveY: -127, aim: 49152,
       buttons: InputButton.Fire | InputButton.Ability, aimSource: AimSource.Mouse }));
     const packet = encodeInputPacket(frames);

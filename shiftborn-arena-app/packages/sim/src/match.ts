@@ -6,7 +6,9 @@ import { clearProjectiles } from './projectiles.js';
 import { sfc32, shuffle } from './rng.js';
 import { rememberSpawn } from './spawns.js';
 import { grantSpawnProtection } from './protection.js';
+import { setupLoot } from './loot.js';
 import { setupClusters } from './shards.js';
+import { cancelWeaponCommitments } from './weaponEvents.js';
 import type { World } from './world.js';
 
 /** GR-2.10: a collision-free textual encoding of the two safe integer inputs. */
@@ -68,6 +70,7 @@ export function startMatch(world: World): void {
     assignment += 1;
   }
   setupClusters(world);
+  setupLoot(world);
 }
 
 /** GR-2.2: transition at the start of each exclusive boundary tick. */
@@ -93,6 +96,8 @@ export function advancePhase(world: World): void {
       if (player !== null) {
         player.morph = null;
         cancelAbility(world, player, world.tick);
+        // GR-2.7a: reloads end without moving ammunition; strikes never land.
+        cancelWeaponCommitments(world, player);
       }
     }
     emitEvent(world, {

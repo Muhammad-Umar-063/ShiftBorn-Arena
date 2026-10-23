@@ -49,6 +49,7 @@ export class InputQueue {
   lastReceivedSeq = 0;
   lastInputSeq = -1;
   lastHeldButtons = 0;
+  private lastResolvedShotIntentSeq = 0;
   private lastAcceptedAim = 0;
   private lastApplied: ClientInputFrame | undefined;
   private readonly acceptedAtMs: number[] = [];
@@ -145,6 +146,18 @@ export class InputQueue {
     this.lastHeldButtons = held;
     this.lastInputSeq = frame.seq;
     return { frame, pressedButtons, consumedSequences };
+  }
+
+  /** D-072: only an intent already present on the applied frame is eligible. */
+  candidateShotIntent(frame: ClientInputFrame): number | null {
+    return frame.shotIntents?.find((seq) =>
+      seq > this.lastResolvedShotIntentSeq && seq <= frame.seq) ?? null;
+  }
+
+  /** Called only after an authoritative shot, including fallback shots. */
+  resolveShotIntent(appliedSeq: number, selectedIntent: number | null): void {
+    this.lastResolvedShotIntentSeq = Math.max(this.lastResolvedShotIntentSeq,
+      selectedIntent ?? appliedSeq);
   }
 
   /** Preserve sequence high-water marks while discarding inactive-seat input. */

@@ -10,6 +10,7 @@ import {
   EventId,
   Form,
   InputButton,
+  MAX_SHOT_INTENTS_PER_FRAME,
   MorphDenialReason,
   Phase,
   PROTOCOL_VERSION,
@@ -24,7 +25,7 @@ import {
 import type { DeathEvent, EncodedEvent, InputFrame } from '../src/index.js';
 
 function frame(seq: number, overrides: Partial<InputFrame> = {}): InputFrame {
-  return {
+  return { aimDist: 120,
     seq,
     moveX: -12,
     moveY: 34,
@@ -36,10 +37,23 @@ function frame(seq: number, overrides: Partial<InputFrame> = {}): InputFrame {
 }
 
 function packetFrame(values: readonly unknown[]): readonly unknown[] {
-  return values;
+  return [...values, 120, ...Array(MAX_SHOT_INTENTS_PER_FRAME).fill(0)];
 }
 
 describe('AT-NET-01 input encoding', () => {
+  it('AT-NET-20 validates aimDist byte without shifting exact durable intents', () => {
+    for (const aimDist of [0, 20, 120, 240, 255]) {
+      const input = { ...frame(12), aimDist, shotIntents: [9, 11] };
+      const packet = encodeInputPacket([input]);
+      expect(packet?.slice(6, 10)).toEqual([aimDist, 9, 11, 0]);
+      expect(decodeInputPacket(packet).frames).toEqual([input]);
+    }
+    for (const value of [-1, 256, 1.5, NaN, Infinity, '120', undefined]) {
+      const packet = [...(encodeInputPacket([frame(1)]) ?? [])]; packet[6] = value as number;
+      expect(decodeInputPacket(packet)).toMatchObject({ packetValid: true, rejectedFrames: 1, frames: [] });
+    }
+    expect(decodeInputPacket(Array(14).fill(0)).packetValid).toBe(false);
+  });
   it.each([1, 2, 3])(
     'round-trips exactly %i frame(s) newest first',
     (count) => {
@@ -48,8 +62,8 @@ describe('AT-NET-01 input encoding', () => {
       );
       const packet = encodeInputPacket(frames);
       expect(packet).not.toBeNull();
-      expect(packet).toHaveLength(count * 6);
-      expect(packet?.filter((_, index) => index % 6 === 0)).toEqual(
+      expect(packet).toHaveLength(count * 15);
+      expect(packet?.filter((_, index) => index % 15 === 0)).toEqual(
         frames.map(({ seq }) => seq),
       );
       expect(decodeInputPacket(packet)).toEqual({
@@ -66,7 +80,7 @@ describe('AT-NET-01 input encoding', () => {
 
   it('accepts minimum and maximum valid wire values', () => {
     const lowest = frame(1, { moveX: -127, moveY: -127, aim: 0, buttons: 0 });
-    const highest = frame(4_294_967_295, {
+    const highest = frame(4_294_967_295, { aimDist: 120,
       moveX: 127,
       moveY: 127,
       aim: 65535,
@@ -86,28 +100,51 @@ describe('AT-NET-01 input encoding', () => {
     [AimSource.Touch, ClientAimSourceCode.Touch],
     [AimSource.Pad, ClientAimSourceCode.Pad],
   ])('maps client aim source %s to wire code %i', (source, code) => {
-    const value = frame(1, { aimSource: source });
+    const value = frame(1, { aimDist: 120, aimSource: source });
     expect(encodeInputPacket([value])?.[5]).toBe(code);
-    expect(decodeInputPacket([1, -12, 34, 12345, 33, code]).frames).toEqual([
+    expect(decodeInputPacket(packetFrame([1, -12, 34, 12345, 33, code])).frames).toEqual([
       value,
     ]);
   });
 
   it('rejects Bot as client input while leaving it valid in InputFrame', () => {
-    const botFrame: InputFrame = frame(1, { aimSource: AimSource.Bot });
+    const botFrame: InputFrame = frame(1, { aimDist: 120, aimSource: AimSource.Bot });
     expect(encodeInputPacket([botFrame])).toBeNull();
     expect(isValidClientInputFrame(botFrame)).toBe(false);
   });
 
-  it('round-trips all eight button bits, including reserved bits 5 to 7', () => {
+  it('round-trips all twelve button bits, including reserved bits 5 to 7 and D-078 bits 8 to 11', () => {
     for (const button of Object.values(InputButton)) {
       const value = frame(1, { buttons: button });
       expect(decodeInputPacket(encodeInputPacket([value])).frames).toEqual([
         value,
       ]);
     }
-    expect(VALID_BUTTON_MASK).toBe(0x00ff);
-    expect(UNUSED_BUTTON_MASK).toBe(0xff00);
+    expect(Object.values(InputButton)).toHaveLength(12);
+    expect(InputButton.Reload).toBe(1 << 8);
+    expect(InputButton.Sprint).toBe(1 << 9);
+    expect(InputButton.Swap).toBe(1 << 10);
+    expect(InputButton.Dagger).toBe(1 << 11);
+    expect(VALID_BUTTON_MASK).toBe(0x0fff);
+    expect(UNUSED_BUTTON_MASK).toBe(0xf000);
+  });
+
+  it('round-trips ordered durable shot intents and rejects malformed tags', () => {
+    const value = { ...frame(120), shotIntents: [117, 119] };
+    expect(decodeInputPacket(encodeInputPacket([value])).frames).toEqual([value]);
+    expect(isValidClientInputFrame({ ...value, shotIntents: [119, 117] })).toBe(false);
+    expect(isValidClientInputFrame({ ...value, shotIntents: [117, 117] })).toBe(false);
+    expect(isValidClientInputFrame({ ...value, shotIntents: [121] })).toBe(false);
+    expect(isValidClientInputFrame({ ...value, shotIntents: [0] })).toBe(false);
+    expect(isValidClientInputFrame({ ...value,
+      shotIntents: [, 117] })).toBe(false);
+    expect(isValidClientInputFrame({ ...value,
+      shotIntents: Array.from({ length: MAX_SHOT_INTENTS_PER_FRAME + 1 },
+        (_, index) => index + 1) })).toBe(false);
+    expect(isValidClientInputFrame({ ...value, shotIntentSeq: 117 })).toBe(false);
+    const malformed = [...packetFrame([120, 0, 0, 0, 1, 0])];
+    malformed[7] = 117; malformed[9] = 119;
+    expect(decodeInputPacket(malformed).rejectedFrames).toBe(1);
   });
 
   it('accepts sequence distance exactly 1000 and rejects 1001', () => {
@@ -168,7 +205,9 @@ describe('AT-NET-01 input encoding', () => {
   });
 
   it('drops a bad middle frame while keeping valid siblings identifiable', () => {
-    const packet = [3, 0, 0, 0, 0, 0, 2, 0, 0, 'bad', 0, 0, 1, 0, 0, 0, 0, 0];
+    const packet = [...packetFrame([3, 0, 0, 0, 0, 0]),
+      ...packetFrame([2, 0, 0, 'bad', 0, 0]),
+      ...packetFrame([1, 0, 0, 0, 0, 0])];
     expect(decodeInputPacket(packet)).toEqual({
       frames: [
         frame(3, { moveX: 0, moveY: 0, aim: 0, buttons: 0 }),
@@ -208,9 +247,9 @@ describe('AT-NET-01 input encoding', () => {
     });
   });
 
-  it('rejects every unused button bit 8 through 15', () => {
-    for (let bit = 8; bit <= 15; bit += 1) {
-      expect(decodeInputPacket([1, 0, 0, 0, 1 << bit, 0]).rejectedFrames).toBe(
+  it('rejects every unused button bit 12 through 15', () => {
+    for (let bit = 12; bit <= 15; bit += 1) {
+      expect(decodeInputPacket(packetFrame([1, 0, 0, 0, 1 << bit, 0])).rejectedFrames).toBe(
         1,
       );
     }
@@ -219,7 +258,7 @@ describe('AT-NET-01 input encoding', () => {
   it('rejects invalid in-memory values without coercing them', () => {
     expect(isValidClientInputFrame({ ...frame(1), moveX: '2' })).toBe(false);
     expect(isValidClientInputFrame({ ...frame(1), aim: Infinity })).toBe(false);
-    expect(isValidClientInputFrame({ ...frame(1), buttons: 256 })).toBe(false);
+    expect(isValidClientInputFrame({ ...frame(1), buttons: 1 << 12 })).toBe(false);
     expect(isValidClientInputFrame({ ...frame(1), aimSource: 'unknown' })).toBe(
       false,
     );
@@ -227,8 +266,8 @@ describe('AT-NET-01 input encoding', () => {
 });
 
 describe('AT-NET-01 protocol constants and event tuples', () => {
-  it('uses the exact initial version and message IDs', () => {
-    expect(PROTOCOL_VERSION).toBe(2);
+  it('uses the current version and stable message IDs', () => {
+    expect(PROTOCOL_VERSION).toBe(5);
     expect(Object.values(ClientMessageId)).toEqual([1, 2, 3, 4, 5, 6, 7]);
     expect(Object.values(ServerMessageId)).toEqual([
       100, 101, 102, 103, 104, 105, 106, 107,
@@ -237,7 +276,7 @@ describe('AT-NET-01 protocol constants and event tuples', () => {
 
   it('uses the exact event, tag, denial and close codes', () => {
     expect(Object.values(EventId)).toEqual(
-      Array.from({ length: 30 }, (_, index) => index + 1),
+      Array.from({ length: 40 }, (_, index) => index + 1),
     );
     expect(DamageTag).toEqual({ Effective: 1, Resisted: 2, Armor: 4 });
     expect(MorphDenialReason).toEqual({
@@ -245,6 +284,7 @@ describe('AT-NET-01 protocol constants and event tuples', () => {
       Flux: 1,
       Busy: 2,
       Phase: 3,
+      Locked: 4,
     });
     expect(CloseCode).toEqual({
       VersionMismatch: 4000,
@@ -256,7 +296,7 @@ describe('AT-NET-01 protocol constants and event tuples', () => {
     });
   });
 
-  it('types all 30 event tuples and variable death assists without any', () => {
+  it('types all 40 event tuples and variable death assists without any', () => {
     type IsAny<T> = 0 extends 1 & T ? true : false;
     const eventIsAny: IsAny<EncodedEvent> = false;
     const death: DeathEvent = [
@@ -283,6 +323,9 @@ describe('AT-NET-01 protocol constants and event tuples', () => {
         1,
         0,
         1,
+        0,
+        0,
+        0,
         0,
       ],
       [EventId.ProjectileHit, 'p', 2, 10, DamageTag.Effective, 0, 0],
@@ -314,6 +357,16 @@ describe('AT-NET-01 protocol constants and event tuples', () => {
       [EventId.Phase, Phase.Playing, 10],
       [EventId.MatchEnd, [1, 2]],
       [EventId.BotReplaced, 1, 'player-id'],
+      [EventId.ProjectileBounce, 'p', 1, 2, 0.5],
+      [EventId.MortarBlast, 'p', 1, 2],
+      [EventId.ReloadStart, 1, WeaponId.PulsePistol, 10],
+      [EventId.ReloadEnd, 1, WeaponId.PulsePistol, 1],
+      [EventId.WeaponSwap, 1, WeaponId.RicochetDisc, 10],
+      [EventId.MeleeStart, 1, 10, 25],
+      [EventId.MeleeStrike, 1, -1, 0, 0, 1, 2],
+      [EventId.FormUnlocked, 1, Form.Beast],
+      [EventId.LootSpawn, 3, WeaponId.ArcMortar, 1, 2],
+      [EventId.LootPickup, 3, 1, WeaponId.ArcMortar, 0],
     ];
     expect(eventIsAny).toBe(false);
     expect(events.map((event) => event[0])).toEqual(Object.values(EventId));

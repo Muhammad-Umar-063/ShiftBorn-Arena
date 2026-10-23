@@ -232,6 +232,7 @@ describe('T-023 real Colyseus authentication and welcome', () => {
         tickRate: BALANCE.tick.rateHz,
         patchRate: BALANCE.tick.patchRateHz,
         testerCode: client.sessionId.slice(0, 6),
+        devCheatsEnabled: false,
       });
       room.setTestTick(38);
       room.rebindTestPlayer();

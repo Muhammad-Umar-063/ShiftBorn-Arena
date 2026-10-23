@@ -18,7 +18,7 @@ function base(): LocalPredictState {
   return localPredictStateFromPlayer(player);
 }
 function frame(seq: number, buttons = 0, moveX = 0, moveY = 0): ClientInputFrame {
-  return { seq, buttons, moveX, moveY, aim: 0, aimSource: AimSource.Mouse };
+  return { aimDist: 120, seq, buttons, moveX, moveY, aim: 0, aimSource: AimSource.Mouse };
 }
 function authority(state: LocalPredictState, tick: number,
   respawnTick = 0): PredictionAuthority {
@@ -28,14 +28,18 @@ function authority(state: LocalPredictState, tick: number,
 }
 
 describe('T-035 D-071 authoritative restore', () => {
-  it('projects every predictable field from a detached version-2 patch', () => {
+  it('projects every predictable field from a detached version-5 patch', () => {
     const state = base();
-    state.weapon[Form.Runner].nextShotIn = 0.17;
+    state.gunTimers.pulsePistol = 0.17;
+    state.guns.ricochetDisc = { owned: true, mag: 5, reserve: 16 };
+    state.selectedTier.runner = 2;
+    state.reload = { gun: 'ricochetDisc', endTick: 130 };
+    state.swapReadyTick = 95;
     state.lastHeldButtons = InputButton.Fire;
     state.lastButtonInputSeq = 17;
     state.lastShotInputSeq = 16;
     state.nextShotIdx = 2;
-    const raw = {
+    const raw = { locomotion: { aimDist: 120, sprinting: false },
       alive: state.alive, x: state.pos.x, y: state.pos.y,
       vx: state.vel.x, vy: state.vel.y, aim: state.aim, form: 0,
       morphTarget: -1, morphEndTick: 0, morphReadyTick: state.morphReadyTick,
@@ -44,14 +48,18 @@ describe('T-035 D-071 authoritative restore', () => {
       abilityReadyRunner: state.abilityReadyTick.runner,
       abilityReadyBeast: state.abilityReadyTick.beast,
       abilityReadyTurret: state.abilityReadyTick.turret,
-      weaponRunnerNextShotIn: 0.17, weaponBeastNextShotIn: 0,
-      weaponTurretNextShotIn: 0, heat: state.heat,
+      gunOwnedMask: 2, gunMag: [0, 5, 0, 0, 0, 0], gunReserve: [0, 16, 0, 0, 0, 0],
+      gunNextShotIn: [0.17, 0, 0, 0, 0, 0],
+      selectedRunner: 2, selectedBeast: 0, selectedTurret: 0,
+      reloadGun: 1, reloadEndTick: 130, swapReadyTick: 95,
+      meleeActive: false, meleeStartTick: 0, meleeStrikeTick: 0, meleeEndTick: 0,
+      heat: state.heat,
       overheatEndTick: state.overheatEndTick, stunEndTick: state.stunEndTick,
       ccImmuneEndTick: state.ccImmuneEndTick, knockbackEndTick: 0,
       kbvx: 0, kbvy: 0, protectedEndTick: 0, respawnTick: 0,
       flux: state.authoritativeFlux, lastInputSeq: 17,
       lastButtonInputSeq: 17, lastHeldButtons: InputButton.Fire,
-      lastShotInputSeq: 16, nextShotIdx: 2, aimSource: 0,
+      lastShotInputSeq: 16, nextShotIdx: 2, aimSource: 0, unlockedMask: 1,
     };
     const read: AuthoritativeRead = { tick: 100, phase: 1, matchId: 'match',
       players: { p: { id: 'p', name: 'Pilot', seat: 0, isBot: false,
@@ -63,14 +71,32 @@ describe('T-035 D-071 authoritative restore', () => {
     const before = JSON.stringify(read);
     const projected = readPredictionAuthority(read, 'p');
     expect(JSON.stringify(read)).toBe(before);
-    expect(projected?.state).toMatchObject({ weapon: state.weapon,
+    expect(projected?.state).toMatchObject({ gunTimers: state.gunTimers,
+      guns: state.guns, selectedTier: state.selectedTier, reload: state.reload,
+      swapReadyTick: 95, melee: null,
       lastButtonInputSeq: 17, lastHeldButtons: InputButton.Fire,
       lastShotInputSeq: 16, nextShotIdx: 2, ccImmuneEndTick: state.ccImmuneEndTick });
     raw.x = 99;
     expect(projected?.state.pos.x).toBe(-24);
+    // D-076: malformed ammunition or ownership is rejected before replay.
+    for (const patch of [
+      { gunMag: [0, 9, 0, 0, 0, 0] },
+      { gunReserve: [1, 16, 0, 0, 0, 0] },
+      { gunOwnedMask: 64 },
+      { locomotion: { aimDist: 256, sprinting: false } },
+      { locomotion: { aimDist: 120, sprinting: 1 } },
+      { locomotion: undefined },
+      { gunNextShotIn: [0, 0, 0] },
+      { reloadGun: 6 },
+      { selectedBeast: 3 },
+    ]) {
+      const broken: AuthoritativeRead = { ...read, full: { ...read.full,
+        players: { p: { ...raw, x: 0, ...patch } } } };
+      expect(readPredictionAuthority(broken, 'p'), JSON.stringify(patch)).toBeNull();
+    }
     expect(JSON.stringify(read)).not.toBe(before);
     expect(readPredictionAuthority({ ...read, full: { ...read.full,
-      players: { p: { ...raw, weaponRunnerNextShotIn: undefined } } } }, 'p')).toBeNull();
+      players: { p: { ...raw, gunNextShotIn: undefined } } } }, 'p')).toBeNull();
   });
 });
 
@@ -153,6 +179,8 @@ describe('T-035 AT-NET-06/07 predictor mechanics', () => {
 
   it('immediately rejects acknowledged morphs and hard-resets death/respawn/recovery', () => {
     const initial = base();
+    // D-074 unlocks are authoritative inputs; this test needs Beast available.
+    initial.unlocked.beast = true;
     const predictor = new Predictor(map);
     const notices: string[] = [];
     predictor.subscribe((notice) => notices.push(notice.kind));

@@ -244,7 +244,7 @@ The T-040 shared step takes the **pre-step simulation tick** in `context.tick`, 
 
 `LocalPredictState` owns position, velocity, aim, form, morph and ability state, per-form cooldowns and weapon timers, heat and overheat, authoritative status and protection timers, held-button/sequence history, and current-step shot candidates. It stores `authoritativeFlux` and `provisionalMorphCost` separately. Morph affordability uses their difference; the predictor never generates Flux. The `shotsThisTick` tags use D-069's per-sequence allocation. The step does not spawn projectiles or apply damage, deaths, respawns, pickups, or scores. Ram Charge and Rail Shot transitions remain for T-041/T-042.
 
-Under D-068, equivalence is conditional on both sides receiving the same authoritative Flux, phase, cover, and status inputs before the tick. The 1,000 seeded T-040 sequences compare every predictable local field after every full server step, with Flux fed explicitly before each tick; an additional test shows a stale Flux value can correctly produce a temporary morph-affordability difference. Literal equality of all `PlayerRecord` fields would require client Flux regeneration and other authoritative outcomes, contrary to D-036. T-040 owns this shared step and tests; T-035 owns browser reconciliation and presentation (D-067). D-071 adds the missing restoration fields to the version 2 Schema; the client validates them before replay.
+Under D-068, equivalence is conditional on both sides receiving the same authoritative Flux, phase, cover, and status inputs before the tick. The 1,000 seeded T-040 sequences compare every predictable local field after every full server step, with Flux fed explicitly before each tick; an additional test shows a stale Flux value can correctly produce a temporary morph-affordability difference. Literal equality of all `PlayerRecord` fields would require client Flux regeneration and other authoritative outcomes, contrary to D-036. T-040 owns this shared step and tests; T-035 owns browser reconciliation and presentation (D-067). D-071 added the missing restoration fields in protocol version 2; D-072 subsequently moved the combined client/server protocol to version 3 for shot-intent input tags. The client validates the restoration fields before replay.
 
 ### 4.7 Mode rules
 
@@ -485,13 +485,16 @@ Logs store the chosen display name and random ids only. No IP addresses in match
 | Network simulation | URL `?lag=150&jitter=20&loss=2` | Adds delay, jitter (ms) and loss (%) on the client in both directions (`docs/NETWORK_PROTOCOL.md` §12) |
 | Dev console | Backtick key, only when the server has `DEV_CHEATS=1` | Commands below |
 
-The server accepts numeric `devCmd` messages only when its validated `DEV_CHEATS=1` setting is on. It parses exact lowercase commands, queues them in arrival order, and applies them before the next normal simulation step. The sender alone receives a private `devResult`. With cheats off, commands are dropped and counted by the existing abuse limit. Client join options cannot enable cheats. The browser console and `/dummies` are later tasks T-038 and T-133.
+T-038 reads F3 values from the renderer frame loop, production clock, authoritative state, predictor and delayed remote/projectile timelines. FPS and frame time average the latest 60 rendered intervals; predictor error averages the latest 60 reconciliations; corrections per minute uses a trailing 60-second window; interpolation depth is the newest minus oldest retained snapshot tick. `hpFrac` and Flux show the raw authoritative number. Before a producer has a reading, the overlay prints `unavailable`. F4 uses shared collision radii and map footprints; it hides destroyed cover and draws active zone and Rail Shot bounds when those states exist. Zone activation and Rail Shot gameplay remain later tasks. The debug view does not affect the simulation.
+
+The server accepts numeric `devCmd` messages only when its validated `DEV_CHEATS=1` setting is on. It parses exact lowercase commands, queues them in arrival order, and applies them before the next normal simulation step. The sender alone receives a private `devResult`. With cheats off, commands are dropped and counted by the existing abuse limit. Client join options cannot enable cheats. T-038's versioned `welcome.devCheatsEnabled` bit is emitted from the trusted room setting on join and reconnect; the browser opens and sends through `Connection` only while that capability and its live session are present. The server still checks every command. `/dummies` belongs to T-133.
 
 | Command | Server effect |
 |---|---|
 | `/flux <n>` | Set the sender's Flux from 0 to `flux.max` and rebase regeneration. |
 | `/hp <fraction>` | Set living health from 0 to 1; zero uses administrative elimination. |
-| `/form <runner\|beast\|turret>` | Switch immediately without Flux cost or a morph event; cancel an active movement ability. |
+| `/form <runner\|beast\|turret>` | Switch immediately without Flux cost or a morph event; cancel an active movement ability. It ignores D-074 unlocks, like every dev command. |
+| `/unlock` | Unlock Beast and Turret for the sender this match, without KO credit, progress or a `formUnlocked` event (test seam for D-074). |
 | `/kill` | Administratively eliminate the sender, with normal respawn delay and no combat credit or shard drop. |
 | `/endmatch` | During PLAYING, make the next normal phase step enter RESULTS. |
 | `/bots <n>` | Set the current ordinary bot count, preserving humans; remove highest seats and fill lowest empty seats. |
@@ -570,3 +573,5 @@ The server accepts numeric `devCmd` messages only when its validated `DEV_CHEATS
 - Errors: the server never crashes on bad client data; it logs and drops. Unexpected internal errors in a room end that room (players see an error screen with a "Play again" button) and are logged with the match id and tick.
 - Commits: `<task id>: <summary>`, for example `T-043: Scatter Cannon pattern and falloff`.
 - Work only on `main`; never create another branch or worktree. Keep one task per commit where possible.
+
+T-057 trusted development command: `/give <gunId>` applies one ordinary pickup (including magazine/reserve caps and draw delay). Like `/unlock`, it uses only the existing server-configured `DEV_CHEATS=1` path; client join options cannot enable it.

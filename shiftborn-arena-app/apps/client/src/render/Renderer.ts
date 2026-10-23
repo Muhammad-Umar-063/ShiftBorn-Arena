@@ -1,4 +1,4 @@
-import { BALANCE, GREYBOX_V1, type MapData } from '@shiftborn/shared';
+import { BALANCE, EventId, GREYBOX_V1, type MapData } from '@shiftborn/shared';
 import {
   Color, Scene, Vector2, WebGLRenderer,
 } from 'three';
@@ -17,6 +17,9 @@ import { RemoteTimeline } from './remoteTimeline.js';
 import { WorldEventTimeline, type LocalFeedback,
   type WorldDelivery } from './worldEventTimeline.js';
 import { capRemoteCatchup } from './remoteCatchup.js';
+import { ProjectileViews } from './projectileViews.js';
+import type { PredictedShotStart } from '../predict/Predictor.js';
+import { HitboxView } from '../debug/HitboxView.js';
 
 function formCode(form: LocalPresentation['form']): number {
   return form === 'beast' ? 1 : form === 'turret' ? 2 : 0;
@@ -44,6 +47,8 @@ export class ArenaRenderer {
   readonly occlusion: OcclusionController;
   readonly entities: EntityViews;
   readonly effects: ArenaEffects;
+  readonly projectiles = new ProjectileViews(this.scene);
+  readonly hitboxes: HitboxView;
   readonly renderer: WebGLRenderer;
   readonly remoteTimeline = new RemoteTimeline();
   readonly worldTimeline = new WorldEventTimeline(this.remoteTimeline);
@@ -55,6 +60,7 @@ export class ArenaRenderer {
   private clockEstimate: (() => number | null) | null = null;
   private readonly worldListeners = new Set<(event: WorldDelivery) => void>();
   private lastSampledRenderTick: number | null = null;
+  private projectilesEnabled = false;
   private fixedStep: (() => void) | null = null;
   private fixedAccumulatorMs = 0;
   private earlyInputSamples = 0;
@@ -64,6 +70,7 @@ export class ArenaRenderer {
   private readonly size = new Vector2();
   private frameHandle: number | null = null;
   private lastFrameAt = 0;
+  private frameObserver: ((atMs: number, frameMs: number | null) => void) | null = null;
   private disposed = false;
   private readonly onWindowResize = (): void => this.resize();
   private readonly onContextLost = (event: Event): void => {
@@ -149,6 +156,7 @@ export class ArenaRenderer {
           this.map.setCoverIntact(cover.id, cover.intact, cover.rebuildTick);
         this.map.setZoneMarkersVisible(sampled.zoneFrenzy === true);
         for (const delivery of this.worldTimeline.due(renderTick)) {
+          if (this.projectilesEnabled) this.projectiles.onWorld(delivery, at);
           const visuals = decodeVisualEvents({ tick: delivery.tick,
             events: [delivery.event] }).map((event) => ({ ...event,
               playerId: delivery.actorId }));
@@ -163,7 +171,11 @@ export class ArenaRenderer {
         this.effects.update({ ...sampled, players }, renderTick, this.camera.camera);
         this.map.updateRubble(renderTick);
       }
+      if (renderTick !== null) this.projectiles.update(at, renderTick);
+      this.hitboxes.update(sampled === null ? null : { ...sampled,
+        players }, this.projectiles.timeline.entries());
       this.renderer.render(this.scene, this.camera.camera);
+      this.frameObserver?.(at, deltaS > 0 ? deltaS * 1000 : null);
       this.frameHandle = requestAnimationFrame(this.frame);
     } catch {
       this.fail();
@@ -189,6 +201,7 @@ export class ArenaRenderer {
     this.occlusion = new OcclusionController(this.map.occluders);
     this.entities = new EntityViews(this.scene);
     this.effects = new ArenaEffects(this.scene);
+    this.hitboxes = new HitboxView(this.scene, this.map.boxes, mapData.zonePoints);
     this.camera.setObstacles(this.map.occluders);
     this.container.prepend(this.renderer.domElement);
     this.renderer.domElement.addEventListener('webglcontextlost', this.onContextLost);
@@ -230,6 +243,16 @@ export class ArenaRenderer {
   }
 
   get displayedRenderTick(): number | null { return this.lastSampledRenderTick; }
+  get debugCounts(): { readonly players: number; readonly shards: number;
+    readonly projectiles: number; readonly bufferDepthTicks: number | null } {
+    return { players: this.presentedPlayers.length,
+      shards: this.snapshot?.shards.length ?? 0,
+      projectiles: this.projectiles.count,
+      bufferDepthTicks: this.remoteTimeline.bufferDepthTicks };
+  }
+  setFrameObserver(observer: ((atMs: number, frameMs: number | null) => void) | null): void {
+    this.frameObserver = observer;
+  }
 
   subscribeWorldEvent(listener: (event: WorldDelivery) => void): () => void {
     this.worldListeners.add(listener);
@@ -248,6 +271,7 @@ export class ArenaRenderer {
       this.resetTimeline();
     }
     this.snapshot = snapshot;
+    this.projectiles.setContext(snapshot.matchId, snapshot.localPlayerId);
     this.presentedLocal = null;
     for (const player of snapshot.players) {
       if (player.id === snapshot.localPlayerId) {
@@ -258,9 +282,27 @@ export class ArenaRenderer {
     this.remoteTimeline.ingest(snapshot, performance.now());
   }
 
-  ingestEventBatch(batch: EventBatch): readonly LocalFeedback[] {
+  ingestEventBatch(batch: EventBatch,
+    onLocalShotConfirmed?: (inputSeq: number) => void): readonly LocalFeedback[] {
     if (this.snapshot === null) return [];
-    return this.worldTimeline.ingest(batch, this.snapshot.localPlayerId);
+    return this.worldTimeline.ingest(batch, this.snapshot.localPlayerId,
+      (delivery) => {
+        if (this.projectilesEnabled) {
+          this.projectiles.onReceipt(delivery, performance.now());
+          if (delivery.event[0] === EventId.ProjectileSpawn &&
+            delivery.projectileOwnerId === this.snapshot?.localPlayerId)
+            onLocalShotConfirmed?.(delivery.event[9]);
+        }
+      });
+  }
+
+  startPredictedShots(shots: readonly PredictedShotStart[], atMs: number): number[] {
+    return this.projectilesEnabled ? this.projectiles.startPredicted(shots, atMs) : [];
+  }
+
+  setProjectilesEnabled(enabled: boolean): void {
+    if (!enabled) this.projectiles.clear();
+    this.projectilesEnabled = enabled;
   }
 
   ingestVisualEvents(events: readonly PresentationEvent[]): void {
@@ -275,6 +317,7 @@ export class ArenaRenderer {
     this.renderedRemotes.clear();
     this.lastSampledRenderTick = null;
     this.entities.clear(); this.effects.clear();
+    this.projectiles.clear();
     for (const box of this.map.boxes)
       if (box.kind === 'cover') this.map.setCoverIntact(box.id, true);
     this.map.setZoneMarkersVisible(false);
@@ -325,6 +368,7 @@ export class ArenaRenderer {
     this.fixedStep = null;
     this.earlyInputSamples = 0;
     this.localPresentation = null;
+    this.frameObserver = null;
     this.clockEstimate = null;
     this.worldListeners.clear();
     this.remoteTimeline.clear(); this.worldTimeline.clear();
@@ -338,6 +382,8 @@ export class ArenaRenderer {
     this.map.dispose();
     this.entities.dispose();
     this.effects.dispose();
+    this.projectiles.dispose();
+    this.hitboxes.dispose();
     this.renderer.dispose();
     this.renderer.domElement.remove();
   }

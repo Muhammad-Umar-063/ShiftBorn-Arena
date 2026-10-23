@@ -11,6 +11,8 @@ export const RoomSettings = schema(
 );
 export type RoomSettingsState = InstanceType<typeof RoomSettings>;
 
+export const LocomotionState = schema({ aimDist: t.uint8().default(120), sprinting: t.boolean().default(false) }, 'LocomotionState');
+
 export const PlayerState = schema(
   {
     id: t.string().default(''),
@@ -25,7 +27,10 @@ export const PlayerState = schema(
     vx: t.float32().default(0),
     vy: t.float32().default(0),
     aim: t.float32().default(0),
+    locomotion: t.ref(LocomotionState),
     form: t.uint8().default(0),
+    // GR-18.2: bit 0 Runner, bit 1 Beast, bit 2 Turret.
+    unlockedMask: t.uint8().default(1),
     morphTarget: t.int8().default(-1),
     morphEndTick: t.uint32().default(0),
     morphReadyTick: t.uint32().default(0),
@@ -59,14 +64,28 @@ export const PlayerState = schema(
     lastHeldButtons: t.uint16().default(0),
     lastShotInputSeq: t.uint32().default(0),
     nextShotIdx: t.uint32().default(0),
-    weaponRunnerNextShotIn: t.float32().default(0),
-    weaponBeastNextShotIn: t.float32().default(0),
-    weaponTurretNextShotIn: t.float32().default(0),
+    // D-076 and GR-7.15 to GR-7.20; array index = GUN_IDS index.
+    gunOwnedMask: t.uint8().default(0),
+    gunMag: t.array('uint8'),
+    gunReserve: t.array('uint8'),
+    gunNextShotIn: t.array('float32'),
+    selectedRunner: t.uint8().default(0),
+    selectedBeast: t.uint8().default(0),
+    selectedTurret: t.uint8().default(0),
+    reloadGun: t.int8().default(-1),
+    reloadEndTick: t.uint32().default(0),
+    swapReadyTick: t.uint32().default(0),
+    meleeActive: t.boolean().default(false),
+    meleeStartTick: t.uint32().default(0),
+    meleeStrikeTick: t.uint32().default(0),
+    meleeEndTick: t.uint32().default(0),
     aimSource: t.uint8().default(0),
   },
   'PlayerState',
 );
 export type PlayerStateRecord = InstanceType<typeof PlayerState>;
+
+export const LootState = schema({ gun: t.uint8().default(0), x: t.float32().default(0), y: t.float32().default(0) }, 'LootState');
 
 export const ShardState = schema(
   {
@@ -123,6 +142,7 @@ export const ArenaState = schema(
     settings: t.ref(RoomSettings),
     players: t.map(PlayerState),
     shards: t.map(ShardState),
+    loot: t.map(LootState),
     clusterAnnounces: t.array(ClusterAnnounce),
     cover: t.array(CoverState),
     zone: t.ref(ZoneState),

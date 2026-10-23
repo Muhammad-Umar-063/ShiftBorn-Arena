@@ -1,8 +1,10 @@
 import { AimSource } from './constants.js';
-import type { AbilityId, Cause, Form, Phase, WeaponId } from './constants.js';
+import type {
+  AbilityId, Cause, Form, GunId, Phase, WeaponId,
+} from './constants.js';
 
-// D-071: full local prediction restoration extends the PlayerState wire.
-export const PROTOCOL_VERSION = 2;
+// D-073 to D-079 release state: loadout, ammunition, loot and new input fields.
+export const PROTOCOL_VERSION = 5;
 
 export const ClientMessageId = {
   Input: 1,
@@ -48,11 +50,17 @@ export const InputButton = {
   MorphTurret: 1 << 4,
   Crate: 1 << 5,
   Ultimate: 1 << 6,
+  // Reserved; D-075 pickup is automatic and never uses this bit.
   Interact: 1 << 7,
+  // D-078: R reload, Shift sprint, Q or wheel swap, V dagger.
+  Reload: 1 << 8,
+  Sprint: 1 << 9,
+  Swap: 1 << 10,
+  Dagger: 1 << 11,
 } as const;
 export type InputButton = (typeof InputButton)[keyof typeof InputButton];
-export const VALID_BUTTON_MASK = 0x00ff;
-export const UNUSED_BUTTON_MASK = 0xff00;
+export const VALID_BUTTON_MASK = 0x0fff;
+export const UNUSED_BUTTON_MASK = 0xf000;
 
 export interface InputFrame {
   readonly seq: number;
@@ -61,9 +69,14 @@ export interface InputFrame {
   readonly aim: number;
   readonly buttons: number;
   readonly aimSource: AimSource;
+  readonly aimDist: number;
+  /** D-072: server-selected accepted visual identity; absent for ordinary input. */
+  readonly shotIntentSeq?: number;
 }
 export interface ClientInputFrame extends InputFrame {
   readonly aimSource: ClientAimSource;
+  /** Ordered, unacknowledged local predicted shots, repeated on later frames. */
+  readonly shotIntents?: readonly number[];
 }
 
 export interface DecodedInputPacket {
@@ -74,7 +87,8 @@ export interface DecodedInputPacket {
 
 const MAX_SEQUENCE = 4_294_967_295;
 const MAX_SEQUENCE_DISTANCE = 1000;
-const FRAME_WIDTH = 6;
+export const MAX_SHOT_INTENTS_PER_FRAME = 8;
+const FRAME_WIDTH = 7 + MAX_SHOT_INTENTS_PER_FRAME;
 const MAX_FRAMES_PER_PACKET = 3;
 
 function integerInRange(
@@ -137,6 +151,20 @@ function aimSourceFromCode(code: unknown): ClientAimSource | null {
   }
 }
 
+function validShotIntents(value: unknown, seq: unknown): boolean {
+  if (value === undefined) return true;
+  if (!Array.isArray(value) || value.length > MAX_SHOT_INTENTS_PER_FRAME ||
+    !integerInRange(seq, 1, MAX_SEQUENCE)) return false;
+  let previous = 0;
+  for (let index = 0; index < value.length; index += 1) {
+    const intent: unknown = value[index];
+    if (!integerInRange(intent, 1, seq) || seq - intent > MAX_SEQUENCE_DISTANCE ||
+      intent <= previous) return false;
+    previous = intent;
+  }
+  return true;
+}
+
 // NETWORK_PROTOCOL §5.2: client input is checked without coercion or clamping.
 export function isValidClientInputFrame(
   value: unknown,
@@ -149,15 +177,18 @@ export function isValidClientInputFrame(
     integerInRange(frame.moveX, -127, 127) &&
     integerInRange(frame.moveY, -127, 127) &&
     integerInRange(frame.aim, 0, 65535) &&
+    integerInRange(frame.aimDist, 0, 255) &&
     integerInRange(frame.buttons, 0, 65535) &&
     (frame.buttons & UNUSED_BUTTON_MASK) === 0 &&
-    aimSourceCode(frame.aimSource) !== null
+    aimSourceCode(frame.aimSource) !== null &&
+    frame.shotIntentSeq === undefined &&
+    validShotIntents(frame.shotIntents, frame.seq)
   );
 }
 
 // Frames are supplied newest first; invalid input returns null without mutation.
 export function encodeInputPacket(
-  frames: readonly InputFrame[],
+  frames: readonly (InputFrame & { readonly shotIntents?: readonly number[] })[],
 ): readonly number[] | null {
   if (
     !Array.isArray(frames) ||
@@ -180,6 +211,9 @@ export function encodeInputPacket(
       frame.aim,
       frame.buttons,
       code,
+      frame.aimDist,
+      ...Array.from({ length: MAX_SHOT_INTENTS_PER_FRAME },
+        (_, index) => frame.shotIntents?.[index] ?? 0),
     );
     previousSeq = frame.seq;
   }
@@ -190,10 +224,16 @@ function decodeFrame(
   values: readonly unknown[],
   lastReceivedSeq?: number,
 ): ClientInputFrame | null {
-  const [seq, moveX, moveY, aim, buttons, code] = values;
+  const [seq, moveX, moveY, aim, buttons, code, aimDist] = values;
   const source = aimSourceFromCode(code);
   if (source === null) return null;
-  const frame = { seq, moveX, moveY, aim, buttons, aimSource: source };
+  const rawIntents = values.slice(7);
+  const firstZero = rawIntents.indexOf(0);
+  if (firstZero >= 0 && rawIntents.slice(firstZero).some((value) => value !== 0))
+    return null;
+  const shotIntents = firstZero < 0 ? rawIntents : rawIntents.slice(0, firstZero);
+  const frame = { seq, moveX, moveY, aim, buttons, aimSource: source, aimDist,
+    ...(shotIntents.length > 0 ? { shotIntents } : {}) };
   return isValidClientInputFrame(frame, lastReceivedSeq) ? frame : null;
 }
 
@@ -259,7 +299,18 @@ export const EventId = {
   Phase: 28,
   MatchEnd: 29,
   BotReplaced: 30,
+  ProjectileBounce: 31,
+  MortarBlast: 32,
+  ReloadStart: 33,
+  ReloadEnd: 34,
+  WeaponSwap: 35,
+  MeleeStart: 36,
+  MeleeStrike: 37,
+  FormUnlocked: 38,
+  LootSpawn: 39,
+  LootPickup: 40,
 } as const;
+export const MAX_EVENT_ID = 40;
 export type EventId = (typeof EventId)[keyof typeof EventId];
 
 export const DamageTag = { Effective: 1, Resisted: 2, Armor: 4 } as const;
@@ -269,6 +320,8 @@ export const MorphDenialReason = {
   Flux: 1,
   Busy: 2,
   Phase: 3,
+  // GR-18.3: the target form is not unlocked yet.
+  Locked: 4,
 } as const;
 export type MorphDenialReason =
   (typeof MorphDenialReason)[keyof typeof MorphDenialReason];
@@ -287,6 +340,10 @@ export type ProjectileSpawnEvent = readonly [
   advancedTicks: number,
   inputSeq: number,
   shotIdx: number,
+  // GR-7.27: Arc Mortar landing; all three are 0 for direct-fire guns.
+  landTick: number,
+  targetX: number,
+  targetY: number,
 ];
 export type ProjectileHitEvent = readonly [
   typeof EventId.ProjectileHit,
@@ -455,6 +512,71 @@ export type BotReplacedEvent = readonly [
   seat: number,
   newPlayerId: string,
 ];
+export type ProjectileBounceEvent = readonly [
+  typeof EventId.ProjectileBounce,
+  id: EventEntityId,
+  x: number,
+  y: number,
+  angle: number,
+];
+export type MortarBlastEvent = readonly [
+  typeof EventId.MortarBlast,
+  id: EventEntityId,
+  x: number,
+  y: number,
+];
+export type ReloadStartEvent = readonly [
+  typeof EventId.ReloadStart,
+  seat: number,
+  gun: GunId,
+  endTick: number,
+];
+export type ReloadEndEvent = readonly [
+  typeof EventId.ReloadEnd,
+  seat: number,
+  gun: GunId,
+  completed: 0 | 1,
+];
+export type WeaponSwapEvent = readonly [
+  typeof EventId.WeaponSwap,
+  seat: number,
+  gun: GunId,
+  readyTick: number,
+];
+export type MeleeStartEvent = readonly [
+  typeof EventId.MeleeStart,
+  seat: number,
+  strikeTick: number,
+  endTick: number,
+];
+export type MeleeStrikeEvent = readonly [
+  typeof EventId.MeleeStrike,
+  seat: number,
+  targetSeat: number,
+  damage: number,
+  tags: number,
+  x2: number,
+  y2: number,
+];
+export type FormUnlockedEvent = readonly [
+  typeof EventId.FormUnlocked,
+  seat: number,
+  form: Form,
+];
+export type LootSpawnEvent = readonly [
+  typeof EventId.LootSpawn,
+  lootId: EventEntityId,
+  gun: GunId,
+  x: number,
+  y: number,
+];
+export type LootPickupEvent = readonly [
+  typeof EventId.LootPickup,
+  lootId: EventEntityId,
+  seat: number,
+  gun: GunId,
+  kind: 0 | 1,
+];
 
 export type EncodedEvent =
   | ProjectileSpawnEvent
@@ -486,7 +608,17 @@ export type EncodedEvent =
   | ZoneStateEvent
   | PhaseEvent
   | MatchEndEvent
-  | BotReplacedEvent;
+  | BotReplacedEvent
+  | ProjectileBounceEvent
+  | MortarBlastEvent
+  | ReloadStartEvent
+  | ReloadEndEvent
+  | WeaponSwapEvent
+  | MeleeStartEvent
+  | MeleeStrikeEvent
+  | FormUnlockedEvent
+  | LootSpawnEvent
+  | LootPickupEvent;
 
 export const CloseCode = {
   VersionMismatch: 4000,

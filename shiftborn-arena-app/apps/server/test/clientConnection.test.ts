@@ -109,6 +109,9 @@ describe('T-031 production client and server socket', () => {
         await until(() => (connection.authoritativeState?.tick ?? 0) > firstTick + 2);
         expect(connection.authoritativeState?.players[ready.welcome.playerId]?.seat)
           .toBe(ready.welcome.seat);
+        // Schema ticks and the Ping/Pong exchange are independent streams.
+        // Wait for the observation being asserted, not an unrelated tick count.
+        await until(() => connection.clock.rttSamples().length > 0);
         expect(connection.clock.rttSamples().length).toBeGreaterThan(0);
         expect(connection.clock.medianRttMs()).toBeLessThan(1000);
         expect(BALANCE.tick.rateHz).toBe(30);

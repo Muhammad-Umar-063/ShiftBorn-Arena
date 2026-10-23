@@ -1,68 +1,153 @@
-import { BALANCE, DERIVED, Form, Phase, WeaponId } from '@shiftborn/shared';
+import {
+  BALANCE,
+  DERIVED,
+  Form,
+  GUN_IDS,
+  GUN_TIER,
+  InputButton,
+  Phase,
+  WeaponId,
+  type GunId,
+} from '@shiftborn/shared';
+import {
+  gunNumbers,
+  meleeActive,
+  selectedGun,
+  swapTarget,
+  usableGun,
+  type GunTimers,
+} from './loadout.js';
 import type { PlayerRecord } from './player.js';
+import { endSpawnProtection } from './protection.js';
 
-export type WeaponAbilityBlock =
-  'dash' | 'ramWindup' | 'ramCharge' | 'railShotCharge' | null;
+type FireActor = Pick<
+  PlayerRecord,
+  | 'alive'
+  | 'morph'
+  | 'stunEndTick'
+  | 'form'
+  | 'overheatEndTick'
+  | 'ability'
+  | 'guns'
+  | 'selectedTier'
+  | 'reload'
+  | 'swapReadyTick'
+  | 'melee'
+>;
 
-export function weaponForForm(form: Form): WeaponId {
-  switch (form) {
-    case Form.Runner:
-      return WeaponId.PulsePistol;
-    case Form.Beast:
-      return WeaponId.ScatterCannon;
-    case Form.Turret:
-      return WeaponId.RailRepeater;
-  }
-}
+export type WeaponActor = FireActor &
+  Pick<PlayerRecord, 'heat' | 'gunTimers' | 'protectedEndTick'>;
 
-export function canFireWeapon(
-  player: Pick<
-    PlayerRecord,
-    'alive' | 'morph' | 'stunEndTick' | 'form' | 'overheatEndTick'
-  >,
+/** Ordered results of one weapons step; the sim turns them into events. */
+export type WeaponAction =
+  | { readonly kind: 'reloadEnd'; readonly gun: GunId; readonly completed: 0 | 1 }
+  | { readonly kind: 'swap'; readonly gun: GunId; readonly readyTick: number }
+  | {
+      readonly kind: 'meleeStart';
+      readonly strikeTick: number;
+      readonly endTick: number;
+    }
+  | { readonly kind: 'reloadStart'; readonly gun: GunId; readonly endTick: number }
+  | { readonly kind: 'overheat'; readonly endTick: number }
+  | { readonly kind: 'fire'; readonly gun: GunId };
+
+const NO_ACTIONS: readonly WeaponAction[] = Object.freeze([]);
+
+/** GR-7.3: the selected gun if it may fire this tick, before heat. */
+export function canFireGun(
+  player: FireActor,
   phase: Phase,
   tick: number,
-  abilityBlock: WeaponAbilityBlock = null,
+): GunId | null {
+  if (
+    phase !== Phase.Playing ||
+    !player.alive ||
+    player.morph !== null ||
+    tick < player.stunEndTick ||
+    player.ability !== null ||
+    player.reload !== null ||
+    tick < player.swapReadyTick ||
+    meleeActive(player, tick)
+  )
+    return null;
+  const gun = selectedGun(player);
+  if (gun === null || player.guns[gun].mag < 1) return null;
+  if (gun === WeaponId.RailRepeater && tick < player.overheatEndTick) return null;
+  return gun;
+}
+
+/** GR-7.16: the gun a swap would select now, or null. */
+export function canSwap(
+  player: FireActor,
+  phase: Phase,
+  tick: number,
+): GunId | null {
+  if (
+    phase !== Phase.Playing ||
+    !player.alive ||
+    player.morph !== null ||
+    tick < player.stunEndTick
+  )
+    return null;
+  return swapTarget(player);
+}
+
+/** GR-7.30: every form may strike when not otherwise committed. */
+export function canStartMelee(
+  player: FireActor,
+  phase: Phase,
+  tick: number,
 ): boolean {
   return (
     phase === Phase.Playing &&
     player.alive &&
     player.morph === null &&
     tick >= player.stunEndTick &&
-    abilityBlock === null &&
-    (player.form !== Form.Turret || tick >= player.overheatEndTick)
+    player.ability === null &&
+    !meleeActive(player, tick)
   );
 }
 
-/** GR-7.2: all form timers advance, including inactive weapons. */
-export function advanceWeaponTimers(
-  timers: Readonly<Record<Form, Readonly<{ nextShotIn: number }>>>,
-  form: Form,
+/** GR-7.19: the selected gun if a reload may start now. */
+export function canStartReload(
+  player: FireActor,
+  phase: Phase,
+  tick: number,
+): GunId | null {
+  if (
+    phase !== Phase.Playing ||
+    !player.alive ||
+    player.reload !== null ||
+    player.morph !== null ||
+    tick < player.stunEndTick ||
+    player.ability !== null ||
+    meleeActive(player, tick) ||
+    tick < player.swapReadyTick
+  )
+    return null;
+  const gun = selectedGun(player);
+  if (gun === null) return null;
+  const state = player.guns[gun];
+  return state.mag < gunNumbers(gun).magazine && state.reserve > 0 ? gun : null;
+}
+
+/** GR-7.2: every gun's timer advances; only the selected gun can fire. */
+export function advanceGunTimers(
+  timers: Readonly<GunTimers>,
+  gun: GunId | null,
   fireHeld: boolean,
   permitted: boolean,
-): { timers: Record<Form, { nextShotIn: number }>; fired: boolean } {
+): { timers: GunTimers; fired: boolean } {
   const dt = DERIVED.tick.secondsPerTick;
-  const next: Record<Form, { nextShotIn: number }> = {
-    [Form.Runner]: { nextShotIn: 0 },
-    [Form.Beast]: { nextShotIn: 0 },
-    [Form.Turret]: { nextShotIn: 0 },
-  };
-  for (const candidate of [Form.Runner, Form.Beast, Form.Turret]) {
-    const advanced = Math.max(timers[candidate].nextShotIn - dt, -dt);
-    next[candidate].nextShotIn = fireHeld ? advanced : Math.max(advanced, 0);
+  const next = {} as GunTimers;
+  for (const candidate of GUN_IDS) {
+    const advanced = Math.max(timers[candidate] - dt, -dt);
+    next[candidate] = fireHeld ? advanced : Math.max(advanced, 0);
   }
   // A mathematically zero timer can retain a few ulps after repeated subtraction.
   const fired =
-    permitted && fireHeld && next[form].nextShotIn <= Number.EPSILON;
-  if (fired) {
-    const interval =
-      form === Form.Runner
-        ? DERIVED.weapons.pulsePistol.intervalS
-        : form === Form.Beast
-          ? DERIVED.weapons.scatterCannon.intervalS
-          : DERIVED.weapons.railRepeater.intervalS;
-    next[form].nextShotIn += interval;
-  }
+    gun !== null && permitted && fireHeld && next[gun] <= Number.EPSILON;
+  if (fired) next[gun] += gunNumbers(gun).intervalS;
   return { timers: next, fired };
 }
 
@@ -76,12 +161,12 @@ export function scatterAngles(aim: number): number[] {
 export function advanceShotSequence(
   history: Pick<PlayerRecord, 'lastShotInputSeq' | 'nextShotIdx'>,
   inputSeq: number,
-  form: Form,
+  gun: GunId,
 ): { firstShotIdx: number; nextShotIdx: number } {
   const firstShotIdx = history.lastShotInputSeq === inputSeq
     ? history.nextShotIdx
     : 0;
-  const count = form === Form.Beast
+  const count = gun === WeaponId.ScatterCannon
     ? DERIVED.weapons.scatterCannon.pelletOffsetsRad.length
     : 1;
   return { firstShotIdx, nextShotIdx: firstShotIdx + count };
@@ -133,43 +218,103 @@ export function advanceTurretHeat(
   };
 }
 
-/** GR-7.2/7.14: apply heat before firing eligibility on this tick. */
+/** GR-7.20: a cancelled reload moves no ammunition. */
+export function cancelReloadState(
+  player: Pick<PlayerRecord, 'reload'>,
+): GunId | null {
+  const reload = player.reload;
+  if (reload === null) return null;
+  player.reload = null;
+  return reload.gun;
+}
+
+function startReload(
+  player: FireActor,
+  phase: Phase,
+  tick: number,
+  push: (action: WeaponAction) => void,
+): void {
+  const gun = canStartReload(player, phase, tick);
+  if (gun === null) return;
+  player.reload = { gun, endTick: tick + gunNumbers(gun).reloadTicks };
+  push({ kind: 'reloadStart', gun, endTick: player.reload.endTick });
+}
+
+/**
+ * GR-15 step 7 for one player, shared by the server and `predictStep`:
+ * reload completion, swap, dagger start, reload start, heat and timers, fire,
+ * then an automatic reload. Callers turn the actions into events and shots.
+ */
 export function advanceWeaponState(
-  player: Pick<
-    PlayerRecord,
-    | 'alive'
-    | 'morph'
-    | 'stunEndTick'
-    | 'form'
-    | 'overheatEndTick'
-    | 'heat'
-    | 'weapon'
-    | 'ability'
-  >,
+  player: WeaponActor,
   phase: Phase,
   tick: number,
   held: boolean,
-): { fired: boolean; overheated: boolean } {
-  const permitted = canFireWeapon(
-    player,
-    phase,
-    tick,
-    player.ability?.id ?? null,
-  );
+  pressed: number,
+): readonly WeaponAction[] {
+  let actions: WeaponAction[] | null = null;
+  const push = (action: WeaponAction): void => {
+    (actions ??= []).push(action);
+  };
+  if (player.melee !== null && tick >= player.melee.endTick) player.melee = null;
+  const reload = player.reload;
+  // GR-7.20: death cancels reloads in step 9; a dead player never completes one.
+  if (reload !== null && player.alive && tick >= reload.endTick) {
+    const state = player.guns[reload.gun];
+    const moved = Math.min(gunNumbers(reload.gun).magazine - state.mag, state.reserve);
+    state.mag += moved;
+    state.reserve -= moved;
+    player.reload = null;
+    push({ kind: 'reloadEnd', gun: reload.gun, completed: 1 });
+  }
+  if ((pressed & InputButton.Swap) !== 0) {
+    const target = canSwap(player, phase, tick);
+    if (target !== null) {
+      const cancelled = cancelReloadState(player);
+      if (cancelled !== null) push({ kind: 'reloadEnd', gun: cancelled, completed: 0 });
+      player.selectedTier[player.form] = GUN_TIER[target];
+      player.swapReadyTick = tick + DERIVED.weapons.swapTicks;
+      push({ kind: 'swap', gun: target, readyTick: player.swapReadyTick });
+    }
+  }
+  const daggerRequested =
+    (pressed & InputButton.Dagger) !== 0 || (held && usableGun(player) === null);
+  if (daggerRequested && canStartMelee(player, phase, tick)) {
+    const cancelled = cancelReloadState(player);
+    if (cancelled !== null) push({ kind: 'reloadEnd', gun: cancelled, completed: 0 });
+    const strikeTick = tick + DERIVED.weapons.dagger.windupTicks;
+    player.melee = {
+      startTick: tick,
+      strikeTick,
+      endTick: strikeTick + DERIVED.weapons.dagger.recoveryTicks,
+    };
+    endSpawnProtection(player, tick);
+    push({ kind: 'meleeStart', strikeTick, endTick: player.melee.endTick });
+  }
+  if ((pressed & InputButton.Reload) !== 0) startReload(player, phase, tick, push);
+  const gun = canFireGun(player, phase, tick);
   const heat = advanceTurretHeat(
     player.heat,
     player.overheatEndTick,
     tick,
-    player.form === Form.Turret && held && permitted,
+    player.form === Form.Turret && gun === WeaponId.RailRepeater && held,
   );
   player.heat = heat.heat;
   player.overheatEndTick = heat.overheatEndTick;
-  const timers = advanceWeaponTimers(
-    player.weapon,
-    player.form,
+  if (heat.overheated) push({ kind: 'overheat', endTick: player.overheatEndTick });
+  const timers = advanceGunTimers(
+    player.gunTimers,
+    gun,
     held,
-    permitted && !heat.overheated,
+    gun !== null && !heat.overheated,
   );
-  player.weapon = timers.timers;
-  return { fired: timers.fired, overheated: heat.overheated };
+  player.gunTimers = timers.timers;
+  if (timers.fired && gun !== null) {
+    player.guns[gun].mag -= 1;
+    push({ kind: 'fire', gun });
+  }
+  const selected = selectedGun(player);
+  if (selected !== null && player.guns[selected].mag === 0)
+    startReload(player, phase, tick, push);
+  return actions ?? NO_ACTIONS;
 }

@@ -4,6 +4,7 @@ import {
   DERIVED,
   Form,
   GREYBOX_V1,
+  GUN_IDS,
   InputButton,
   Phase,
   type InputFrame,
@@ -41,7 +42,11 @@ function setup(seed: number, selectedMap = map) {
     seed,
     map: selectedMap,
     players: [playerSpec],
+    unlockAllForms: true,
+    armAllGuns: true,
   });
+  // D-068 conditional equivalence excludes exogenous pickups; loot tests cover authority.
+  world.loot = [];
   world.phase = Phase.Playing;
   world.phaseEndTick = world.tick + DERIVED.match.durationTicks;
   const player = world.players[0];
@@ -51,7 +56,7 @@ function setup(seed: number, selectedMap = map) {
 }
 
 function frame(seq: number, buttons = 0, moveX = 0, moveY = 0, aim = 0): InputFrame {
-  return { seq, buttons, moveX, moveY, aim, aimSource: AimSource.Mouse };
+  return { aimDist: 120, seq, buttons, moveX, moveY, aim, aimSource: AimSource.Mouse };
 }
 
 function predictable(player: PlayerRecord | LocalPredictState) {
@@ -60,12 +65,19 @@ function predictable(player: PlayerRecord | LocalPredictState) {
     pos: player.pos,
     vel: player.vel,
     aim: player.aim,
+    aimDistM: player.aimDistM, sprinting: player.sprinting,
     form: player.form,
     morph: player.morph,
     morphReadyTick: player.morphReadyTick,
     ability: player.ability,
     abilityReadyTick: player.abilityReadyTick,
-    weapon: player.weapon,
+    unlocked: player.unlocked,
+    guns: player.guns,
+    selectedTier: player.selectedTier,
+    gunTimers: player.gunTimers,
+    reload: player.reload,
+    swapReadyTick: player.swapReadyTick,
+    melee: player.melee,
     heat: player.heat,
     overheatEndTick: player.overheatEndTick,
     stunEndTick: player.stunEndTick,
@@ -112,7 +124,7 @@ function rng(seed: number): () => number {
 }
 
 describe('T-040 GR-15 local prediction equivalence', () => {
-  it('matches the full server step on 1,000 distinct seeded persistent sequences, every tick', () => {
+  it('AT-NET-21 matches the full server step on 1,000 distinct seeded persistent sequences, every tick', () => {
     for (let seed = 1; seed <= 1_000; seed += 1) {
       const selectedMap = seed % 2 === 0 ? wallMap : map;
       const { world, player } = setup(seed, selectedMap);
@@ -124,6 +136,17 @@ describe('T-040 GR-15 local prediction equivalence', () => {
       player.fluxRegenTicks = 0;
       if (player.form === Form.Turret) player.vel = { x: 0, y: 0 };
       if (seed % 11 === 0) player.stunEndTick = 4;
+      // D-075/D-076 loadouts: tier 1, unarmed (dagger), tier 2, nearly empty magazines.
+      const loadout = seed % 4;
+      if (loadout === 1) {
+        for (const gun of GUN_IDS) player.guns[gun] = { owned: false, mag: 0, reserve: 0 };
+        player.selectedTier = { runner: 0, beast: 0, turret: 0 };
+      } else if (loadout === 2) {
+        player.selectedTier = { runner: 2, beast: 2, turret: 2 };
+      } else if (loadout === 3) {
+        for (const gun of GUN_IDS)
+          player.guns[gun] = { owned: true, mag: 1 + (seed % 2), reserve: 3 };
+      }
       let local = localPredictStateFromPlayer(player);
       let previous = frame(0);
       for (let sequence = 0; sequence < 48; sequence += 1) {
@@ -143,7 +166,11 @@ describe('T-040 GR-15 local prediction equivalence', () => {
         const buttons =
           morph |
           (random() < 0.17 ? InputButton.Ability : 0) |
-          (random() < 0.38 ? InputButton.Fire : 0);
+          (random() < 0.38 ? InputButton.Fire : 0) |
+          (random() < 0.06 ? InputButton.Reload : 0) |
+          (random() < 0.06 ? InputButton.Swap : 0) |
+          (random() < 0.05 ? InputButton.Dagger : 0) |
+          (random() < 0.3 ? InputButton.Sprint : 0);
         const axis = [-127, -90, 0, 90, 127];
         const input = repeat
           ? previous
@@ -174,13 +201,15 @@ describe('T-040 GR-15 local prediction equivalence', () => {
             inputSeq: event.inputSeq,
             shotIdx: event.shotIdx,
             form: player.form,
+            weapon: event.weapon,
             angle: event.angle,
           })),
         );
         local = next;
       }
     }
-  });
+  // The 48,000-tick deterministic sweep can exceed the 5 s default under suite load.
+  }, 30_000);
 
   it('GR-10.2 keeps Flux gains authoritative and exposes an affordability boundary', () => {
     const { world, player } = setup(5001);
@@ -480,7 +509,10 @@ describe('T-040 GR-15 local prediction equivalence', () => {
     expect(one).toEqual(two);
     expect(one).not.toBe(local);
     expect(one.pos).not.toBe(local.pos);
-    expect(one.weapon).not.toBe(local.weapon);
+    expect(one.gunTimers).not.toBe(local.gunTimers);
+    expect(one.guns).not.toBe(local.guns);
+    expect(one.guns.pulsePistol).not.toBe(local.guns.pulsePistol);
+    expect(one.selectedTier).not.toBe(local.selectedTier);
     expect(local).toEqual(beforeLocal);
     expect(input).toEqual(beforeInput);
     expect(world.map).toEqual(beforeMap);
@@ -489,7 +521,8 @@ describe('T-040 GR-15 local prediction equivalence', () => {
     expect(world.projectiles).toHaveLength(0);
     expect(player.hpFrac).toBe(1);
     expect(one.pos).not.toBe(two.pos);
-    expect(one.weapon[Form.Runner]).not.toBe(two.weapon[Form.Runner]);
+    expect(one.gunTimers).not.toBe(two.gunTimers);
+    expect(one.guns.pulsePistol).not.toBe(two.guns.pulsePistol);
     const shotOnly = predictStep(
       local,
       frame(1, InputButton.Fire),

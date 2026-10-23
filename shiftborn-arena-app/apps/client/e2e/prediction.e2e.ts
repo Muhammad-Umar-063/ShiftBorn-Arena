@@ -155,6 +155,14 @@ test('AT-NET-07 60-second walking, Dash and morph correction rate at 150 ms RTT'
     await page.waitForTimeout(5_000);
     await page.keyboard.press('e');
     await page.waitForTimeout(10_000);
+    await page.evaluate(() => {
+      const h = (window as unknown as { __predictionLive: { connection: { sendDevCommand(cmd: string): boolean } } }).__predictionLive;
+      if (!h.connection.sendDevCommand('/unlock')) throw new Error('trusted dev unlock unavailable');
+    });
+    await expect.poll(() => page.evaluate(() => {
+      const h = (window as unknown as { __predictionLive: { connection: { authoritativeState: { full: { players: Record<string, { unlockedMask: number }> } } }; getLocalId(): string } }).__predictionLive;
+      return h.connection.authoritativeState.full.players[h.getLocalId()]?.unlockedMask;
+    })).toBe(7);
     await page.keyboard.press('2');
     await page.waitForTimeout(15_000);
     await page.keyboard.up('w');

@@ -1,7 +1,8 @@
 import {
-  AimSource, BALANCE, Cause, Controller, Form, GREYBOX_V1, Mode, Phase,
-  WeaponId,
+  AimSource, BALANCE, Cause, Controller, Form, GREYBOX_V1, GUN_IDS, Mode, Phase,
+  isGunId,
 } from '@shiftborn/shared';
+import { gunNumbers } from './loadout.js';
 import { createMapRuntime } from './map/collisionIndex.js';
 import { deriveMatchId } from './match.js';
 import { createPlayer, createPlayerStats } from './player.js';
@@ -27,7 +28,8 @@ export function snapshotWorld(world: World): WorldSnapshot {
     tick: world.tick, phase: world.phase, phaseEndTick: world.phaseEndTick,
     mode: world.mode, pendingMode: world.pendingMode,
     matchIndex: world.matchIndex, matchId: world.matchId,
-    roomSeed: world.roomSeed, rng: world.rng, cover: world.cover,
+    roomSeed: world.roomSeed, rng: world.rng, lootRng: world.lootRng,
+    loot: world.loot, lootReplenishments: world.lootReplenishments, nextLootId: world.nextLootId, cover: world.cover,
     players: world.players, projectiles: world.projectiles,
     nextProjectileId: world.nextProjectileId, nextShardId: world.nextShardId,
     shards: world.shards, clusters: world.clusters, zone: world.zone,
@@ -86,14 +88,42 @@ const snapshotKeys = [
   'tick', 'phase', 'phaseEndTick', 'mode', 'pendingMode', 'matchIndex',
   'matchId', 'roomSeed', 'rng', 'cover', 'players', 'projectiles',
   'nextProjectileId', 'nextShardId', 'shards', 'clusters', 'zone',
-  'recentSpawns', 'pendingDeaths', 'mapId',
+  'recentSpawns', 'pendingDeaths', 'mapId', 'loot', 'lootRng', 'lootReplenishments', 'nextLootId',
 ];
 const numericPlayerKeys = [
   'seat', 'aim', 'morphReadyTick', 'hpFrac', 'flux', 'heat', 'overheatEndTick',
   'stunEndTick', 'ccImmuneEndTick', 'protectedEndTick', 'respawnTick',
   'fluxRegenAnchor', 'fluxRegenTicks', 'lastInputSeq', 'lastButtonInputSeq',
-  'lastHeldButtons', 'lastShotInputSeq', 'nextShotIdx',
+  'lastHeldButtons', 'lastShotInputSeq', 'nextShotIdx', 'aimDistM',
 ] as const;
+
+/** GR-7.18: every gun has ownership and bounded, whole-number ammunition. */
+function gunInventory(value: unknown): boolean {
+  return record(value) && Object.keys(value).length === GUN_IDS.length &&
+    GUN_IDS.every((gun) => {
+      const state = value[gun];
+      if (!record(state) || Object.keys(state).length !== 3 ||
+        typeof state.owned !== 'boolean' || !integer(state.mag) ||
+        !integer(state.reserve)) return false;
+      const numbers = gunNumbers(gun);
+      return state.mag >= 0 && state.mag <= numbers.magazine &&
+        state.reserve >= 0 && state.reserve <= numbers.reserveMax &&
+        (state.owned || (state.mag === 0 && state.reserve === 0));
+    });
+}
+
+function selections(value: unknown): boolean {
+  return record(value) && Object.keys(value).length === 3 &&
+    Object.values(Form).every((form) =>
+      value[form] === 0 || value[form] === 1 || value[form] === 2);
+}
+
+/** GR-18.1: Runner is always unlocked; the other forms are booleans. */
+function unlocks(value: unknown): boolean {
+  return record(value) && Object.keys(value).length === 3 &&
+    value[Form.Runner] === true && typeof value[Form.Beast] === 'boolean' &&
+    typeof value[Form.Turret] === 'boolean';
+}
 
 function player(value: unknown, seat: number): boolean {
   if (value === null) return true;
@@ -101,15 +131,24 @@ function player(value: unknown, seat: number): boolean {
     !playerKeys.every((key) => Object.hasOwn(value, key))) return false;
   if (typeof value.id !== 'string' || value.id.length === 0 ||
     typeof value.name !== 'string' || typeof value.isBot !== 'boolean' ||
-    typeof value.alive !== 'boolean' || value.seat !== seat ||
+    typeof value.alive !== 'boolean' || typeof value.sprinting !== 'boolean' || value.seat !== seat ||
     !oneOf(value.controller, Object.values(Controller)) ||
     !oneOf(value.form, Object.values(Form)) ||
     !oneOf(value.aimSource, Object.values(AimSource)) ||
     !vec(value.pos) || !vec(value.vel) ||
     !numericPlayerKeys.every((key) => finite(value[key])) ||
     !numericShape(value.stats, createPlayerStats()) ||
-    !numericShape(value.weapon, playerTemplate.weapon) ||
+    !numericShape(value.gunTimers, playerTemplate.gunTimers) ||
+    !gunInventory(value.guns) || !selections(value.selectedTier) ||
+    !finite(value.swapReadyTick) ||
+    !(value.reload === null || (record(value.reload) &&
+      Object.keys(value.reload).length === 2 && isGunId(value.reload.gun) &&
+      integer(value.reload.endTick))) ||
+    !(value.melee === null || (record(value.melee) &&
+      Object.keys(value.melee).length === 3 && integer(value.melee.startTick) &&
+      integer(value.melee.strikeTick) && integer(value.melee.endTick))) ||
     !numericShape(value.abilityReadyTick, playerTemplate.abilityReadyTick) ||
+    !unlocks(value.unlocked) ||
     !(value.respawnFlux === null || finite(value.respawnFlux))) return false;
   if (value.isBot && value.controller !== Controller.Bot) return false;
   if (!finite(value.hpFrac) || value.hpFrac < 0 || value.hpFrac > 1 ||
@@ -130,10 +169,11 @@ function projectile(value: unknown): boolean {
   if (!record(value) || !finiteTree(value) || !vec(value.pos) || !vec(value.dir) ||
     typeof value.ownerId !== 'string' || typeof value.ownerName !== 'string' ||
     !oneOf(value.ownerForm, Object.values(Form)) ||
-    !oneOf(value.weapon, Object.values(WeaponId))) return false;
+    !isGunId(value.weapon)) return false;
   const numericKeys = [
     'id', 'ownerSeat', 'angle', 'speedMPerTick', 'radiusM', 'rangeM',
     'traveledM', 'baseDamage', 'spawnTick', 'inputSeq', 'shotIdx',
+    'bounces', 'damageMult', 'landTick', 'targetX', 'targetY',
   ];
   return Object.keys(value).length === numericKeys.length + 6 &&
     numericKeys.every((key) => finite(value[key]));
@@ -184,6 +224,18 @@ export function isWorldSnapshot(value: unknown): value is WorldSnapshot {
       const component = record(value.rng) ? value.rng[key] : undefined;
       return integer(component) && component >= 0 && component <= 0xffffffff;
     }) ||
+    !record(value.lootRng) || Object.keys(value.lootRng).length !== 4 ||
+    !['a', 'b', 'c', 'd'].every(key => {
+      const component = record(value.lootRng) ? value.lootRng[key] : undefined;
+      return integer(component) && component >= 0 && component <= 0xffffffff;
+    }) ||
+    !integer(value.nextLootId) || value.nextLootId < 0 ||
+    !Array.isArray(value.loot) || !value.loot.every((item: unknown) =>
+      record(item) && Object.keys(item).length === 4 && integer(item.id) &&
+      item.id >= 0 && item.id < (value.nextLootId as number) && isGunId(item.gun) && finite(item.x) && finite(item.y)) ||
+    !Array.isArray(value.lootReplenishments) || !value.lootReplenishments.every((item: unknown) =>
+      record(item) && Object.keys(item).length === 3 && integer(item.id) && item.id >= 0 &&
+      item.id < (value.nextLootId as number) && isGunId(item.gun) && integer(item.dueTick)) ||
     !Array.isArray(value.players) || value.players.length !== BALANCE.match.seats ||
     !value.players.every((item: unknown, seat: number) => player(item, seat)) ||
     !Array.isArray(value.cover) || value.cover.length !== GREYBOX_V1.cover.length ||
@@ -214,7 +266,8 @@ export function restoreWorld(value: unknown): World {
     phaseEndTick: detached.phaseEndTick, mode: detached.mode,
     pendingMode: detached.pendingMode, matchIndex: detached.matchIndex,
     matchId: detached.matchId, roomSeed: detached.roomSeed, rng: detached.rng,
-    cover: detached.cover, players: detached.players,
+    lootRng: detached.lootRng, loot: detached.loot, lootReplenishments: detached.lootReplenishments,
+    nextLootId: detached.nextLootId, cover: detached.cover, players: detached.players,
     projectiles: detached.projectiles,
     nextProjectileId: detached.nextProjectileId,
     nextShardId: detached.nextShardId, shards: detached.shards,

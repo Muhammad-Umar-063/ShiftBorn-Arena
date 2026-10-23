@@ -6,8 +6,12 @@ import {
   Form,
   GREYBOX_V1,
   InputButton,
+  GUN_FORM,
+  GUN_IDS,
+  GUN_TIER,
   Phase,
   WeaponId,
+  gunFor,
   type InputFrame,
   type MapData,
 } from '@shiftborn/shared';
@@ -25,15 +29,16 @@ import {
 import { step } from '../src/step.js';
 import {
   advanceTurretHeat,
-  advanceWeaponTimers,
-  canFireWeapon,
+  advanceGunTimers,
+  canFireGun,
   railDistanceMul,
   scatterAngles,
   scatterDistanceMul,
-  weaponForForm,
 } from '../src/weaponRules.js';
+import { startDash } from '../src/ability.js';
+import { zeroGunTimers } from '../src/loadout.js';
 import type { PlayerRecord, World } from '../src/world.js';
-import { makeTestWorld } from './fixtures/makeTestWorld.js';
+import { makeTestWorld, tier1Gun } from './fixtures/makeTestWorld.js';
 import { TEST_OPEN } from './fixtures/testOpen.js';
 
 const openMap: MapData = { ...TEST_OPEN, spawnPoints: GREYBOX_V1.spawnPoints };
@@ -42,7 +47,9 @@ const targetSpec = { id: 'target', name: 'Target', seat: 1, isBot: false };
 const twoPlayers = [shooterSpec, targetSpec];
 
 function setup(players = twoPlayers, map: MapData = openMap) {
-  const world = makeTestWorld({ seed: 16, map, players });
+  const world = makeTestWorld({
+    seed: 16, map, players, unlockAllForms: true, armAllGuns: true,
+  });
   world.phase = Phase.Playing;
   world.phaseEndTick = world.tick + DERIVED.match.durationTicks;
   world.events.length = 0;
@@ -56,7 +63,7 @@ function setup(players = twoPlayers, map: MapData = openMap) {
 }
 
 function frame(seq: number, buttons = 0, aim = 0): InputFrame {
-  return { seq, moveX: 0, moveY: 0, aim, buttons, aimSource: AimSource.Mouse };
+  return { aimDist: 120, seq, moveX: 0, moveY: 0, aim, buttons, aimSource: AimSource.Mouse };
 }
 
 function tick(world: World, buttons = 0, aim = 0, context = {}) {
@@ -71,10 +78,14 @@ function target(world: World): PlayerRecord {
 }
 
 describe('GR-7 pure weapon rules', () => {
-  it('GR-7.1 maps each form to its weapon and exact Scatter angles', () => {
-    expect(weaponForForm(Form.Runner)).toBe(WeaponId.PulsePistol);
-    expect(weaponForForm(Form.Beast)).toBe(WeaponId.ScatterCannon);
-    expect(weaponForForm(Form.Turret)).toBe(WeaponId.RailRepeater);
+  it('GR-7.1 GR-7.25 maps each form to its tier 1 and tier 2 guns and exact Scatter angles', () => {
+    expect(gunFor(Form.Runner, 1)).toBe(WeaponId.PulsePistol);
+    expect(gunFor(Form.Runner, 2)).toBe(WeaponId.RicochetDisc);
+    expect(gunFor(Form.Beast, 1)).toBe(WeaponId.ScatterCannon);
+    expect(gunFor(Form.Beast, 2)).toBe(WeaponId.SlugCannon);
+    expect(gunFor(Form.Turret, 1)).toBe(WeaponId.RailRepeater);
+    expect(gunFor(Form.Turret, 2)).toBe(WeaponId.ArcMortar);
+    for (const gun of GUN_IDS) expect(gunFor(GUN_FORM[gun], GUN_TIER[gun])).toBe(gun);
     expect(scatterAngles(0)).toEqual(
       DERIVED.weapons.scatterCannon.pelletOffsetsRad,
     );
@@ -87,26 +98,28 @@ describe('GR-7 pure weapon rules', () => {
 
   it('AT-WPN-03 GR-7.2 advances inactive timers and prevents banking after release', () => {
     const timers = {
-      runner: { nextShotIn: DERIVED.weapons.pulsePistol.intervalS },
-      beast: { nextShotIn: DERIVED.weapons.scatterCannon.intervalS },
-      turret: { nextShotIn: DERIVED.weapons.railRepeater.intervalS },
+      ...zeroGunTimers(),
+      pulsePistol: DERIVED.weapons.pulsePistol.intervalS,
+      scatterCannon: DERIVED.weapons.scatterCannon.intervalS,
+      railRepeater: DERIVED.weapons.railRepeater.intervalS,
     };
     const before = structuredClone(timers);
-    const advanced = advanceWeaponTimers(timers, Form.Runner, true, true);
+    const advanced = advanceGunTimers(timers, WeaponId.PulsePistol, true, true);
     expect(timers).toEqual(before);
     expect(advanced.fired).toBe(false);
-    expect(advanced.timers.beast.nextShotIn).toBe(
-      timers.beast.nextShotIn - DERIVED.tick.secondsPerTick,
+    expect(advanced.timers.scatterCannon).toBe(
+      timers.scatterCannon - DERIVED.tick.secondsPerTick,
     );
     let state = advanced.timers;
     for (let count = 0; count < 2 * BALANCE.tick.rateHz; count += 1)
-      state = advanceWeaponTimers(state, Form.Runner, false, true).timers;
-    expect(state.runner.nextShotIn).toBe(0);
-    const pressed = advanceWeaponTimers(state, Form.Runner, true, true);
+      state = advanceGunTimers(state, WeaponId.PulsePistol, false, true).timers;
+    expect(state.pulsePistol).toBe(0);
+    const pressed = advanceGunTimers(state, WeaponId.PulsePistol, true, true);
     expect(pressed.fired).toBe(true);
     expect(
-      advanceWeaponTimers(pressed.timers, Form.Runner, true, true).fired,
+      advanceGunTimers(pressed.timers, WeaponId.PulsePistol, true, true).fired,
     ).toBe(false);
+    expect(advanceGunTimers(state, null, true, true).fired).toBe(false);
   });
 
   it('AT-WPN-08 GR-7.11 and AT-WPN-09 GR-7.13 apply exact distance boundaries', () => {
@@ -158,42 +171,70 @@ describe('GR-7 pure weapon rules', () => {
     expect(cooling.heat).toBe(0);
   });
 
-  it('AT-WPN-12 GR-7.3 blocks each ability seam and status but ignores knockback', () => {
+  it('AT-WPN-12 GR-7.3 blocks abilities, status, ammunition and commitments but ignores knockback', () => {
     const { shooter } = setup();
-    expect(canFireWeapon(shooter, Phase.Playing, 0)).toBe(true);
-    for (const state of [
-      'dash',
-      'ramWindup',
-      'ramCharge',
-      'railShotCharge',
-    ] as const)
-      expect(canFireWeapon(shooter, Phase.Playing, 0, state)).toBe(false);
+    expect(canFireGun(shooter, Phase.Playing, 0)).toBe(WeaponId.PulsePistol);
+    shooter.ability = startDash(0, { x: 1, y: 0 });
+    expect(canFireGun(shooter, Phase.Playing, 0)).toBeNull();
+    shooter.ability = null;
     shooter.knockback = { vel: { x: 1, y: 0 }, endTick: 10 };
-    expect(canFireWeapon(shooter, Phase.Playing, 0)).toBe(true);
+    expect(canFireGun(shooter, Phase.Playing, 0)).toBe(WeaponId.PulsePistol);
     shooter.stunEndTick = 1;
-    expect(canFireWeapon(shooter, Phase.Playing, 0)).toBe(false);
-    expect(canFireWeapon(shooter, Phase.Playing, 1)).toBe(true);
+    expect(canFireGun(shooter, Phase.Playing, 0)).toBeNull();
+    expect(canFireGun(shooter, Phase.Playing, 1)).toBe(WeaponId.PulsePistol);
     shooter.morph = { target: Form.Beast, endTick: 10 };
-    expect(canFireWeapon(shooter, Phase.Playing, 1)).toBe(false);
+    expect(canFireGun(shooter, Phase.Playing, 1)).toBeNull();
     shooter.morph = null;
     shooter.alive = false;
-    expect(canFireWeapon(shooter, Phase.Playing, 1)).toBe(false);
+    expect(canFireGun(shooter, Phase.Playing, 1)).toBeNull();
     shooter.alive = true;
-    expect(canFireWeapon(shooter, Phase.Countdown, 1)).toBe(false);
-    expect(canFireWeapon(shooter, Phase.Results, 1)).toBe(false);
+    expect(canFireGun(shooter, Phase.Countdown, 1)).toBeNull();
+    expect(canFireGun(shooter, Phase.Results, 1)).toBeNull();
+    shooter.reload = { gun: WeaponId.PulsePistol, endTick: 50 };
+    expect(canFireGun(shooter, Phase.Playing, 1)).toBeNull();
+    shooter.reload = null;
+    shooter.swapReadyTick = 5;
+    expect(canFireGun(shooter, Phase.Playing, 4)).toBeNull();
+    expect(canFireGun(shooter, Phase.Playing, 5)).toBe(WeaponId.PulsePistol);
+    shooter.melee = { startTick: 5, strikeTick: 8, endTick: 23 };
+    expect(canFireGun(shooter, Phase.Playing, 22)).toBeNull();
+    expect(canFireGun(shooter, Phase.Playing, 23)).toBe(WeaponId.PulsePistol);
+    shooter.melee = null;
+    shooter.guns.pulsePistol.mag = 0;
+    expect(canFireGun(shooter, Phase.Playing, 23)).toBeNull();
+    shooter.selectedTier.runner = 0;
+    expect(canFireGun(shooter, Phase.Playing, 23)).toBeNull();
     shooter.form = Form.Turret;
-    shooter.overheatEndTick = 10;
-    expect(canFireWeapon(shooter, Phase.Playing, 9)).toBe(false);
-    expect(canFireWeapon(shooter, Phase.Playing, 10)).toBe(true);
+    shooter.overheatEndTick = 30;
+    expect(canFireGun(shooter, Phase.Playing, 29)).toBeNull();
+    expect(canFireGun(shooter, Phase.Playing, 30)).toBe(WeaponId.RailRepeater);
+    shooter.selectedTier.turret = 2;
+    expect(canFireGun(shooter, Phase.Playing, 29)).toBe(WeaponId.ArcMortar);
   });
 });
 
 describe('GR-7 firing and projectile simulation', () => {
-  it('AT-WPN-01 fires 60 ±1 Pulse shots in 300 held ticks', () => {
-    const { world } = setup([shooterSpec]);
-    for (let index = 0; index < 300; index += 1) tick(world, InputButton.Fire);
-    expect(world.nextProjectileId).toBeGreaterThanOrEqual(59);
-    expect(world.nextProjectileId).toBeLessThanOrEqual(61);
+  it('AT-WPN-01 D-076 fires one 20-round magazine exactly 5 ticks apart, then reloads', () => {
+    const { world, shooter } = setup([shooterSpec]);
+    const magazine = BALANCE.weapons.pulsePistol.magazine;
+    const spawnTicks: number[] = [];
+    let reloadStart = -1;
+    for (let index = 0; index < 150; index += 1) {
+      const events = tick(world, InputButton.Fire);
+      for (const event of events) {
+        if (event.type === 'projectileSpawn') spawnTicks.push(event.spawnTick);
+        if (event.type === 'reloadStart' && reloadStart < 0) reloadStart = world.tick - 1;
+      }
+    }
+    // GR-7.2: the -dt floor credits the first shot one tick, then 5 ticks each.
+    expect(spawnTicks.slice(0, magazine).map((value, index) =>
+      index === 0 ? 0 : value - (spawnTicks[index - 1] ?? 0))).toEqual(
+      [0, 4, ...Array.from({ length: magazine - 2 }, () => 5)]);
+    expect(reloadStart).toBe((spawnTicks[magazine - 1] ?? -1));
+    expect(spawnTicks[magazine]).toBe(
+      reloadStart + DERIVED.weapons.pulsePistol.reloadTicks);
+    expect(shooter.guns.pulsePistol.reserve).toBe(
+      BALANCE.weapons.pulsePistol.reserveMax - magazine);
   });
 
   it('AT-WPN-02 fires 14 or 15 Rail bolts in 120 held ticks', () => {
@@ -222,7 +263,7 @@ describe('GR-7 firing and projectile simulation', () => {
 
   it('AT-WPN-04 expires at exactly 14 m and keeps travel capped', () => {
     const { world, shooter } = setup([shooterSpec]);
-    const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (projectile === null) throw new Error('unexpected muzzle impact');
     expect(advanceProjectile(world, projectile)).toBe(true);
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
@@ -242,7 +283,7 @@ describe('GR-7 firing and projectile simulation', () => {
       walls: [{ id: 'near', box: [3, -5, 4, 5] }],
     };
     const { world, shooter } = setup([shooterSpec], wallMap);
-    const first = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const first = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (first === null) throw new Error('unexpected muzzle impact');
     advanceAllProjectiles(world);
     advanceAllProjectiles(world);
@@ -253,7 +294,7 @@ describe('GR-7 firing and projectile simulation', () => {
       y: 0,
     });
     shooter.pos = { x: 3 - BALANCE.forms.runner.radiusM, y: 0 };
-    const second = spawnProjectile(world, shooter, 0, 2, 0, 0);
+    const second = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 2, 0, 0);
     expect(second).toBeNull();
     expect(world.events.slice(-2).map((event) => event.type)).toEqual([
       'projectileSpawn',
@@ -266,7 +307,7 @@ describe('GR-7 firing and projectile simulation', () => {
     const { world, shooter } = setup([shooterSpec]);
     shooter.form = Form.Beast;
     const rngBefore = structuredClone(world.rng);
-    const fired = fireProjectiles(world, shooter, 17, 0, 0);
+    const fired = fireProjectiles(world, shooter, tier1Gun(shooter.form), 17, 0, 0);
     expect(fired).toHaveLength(
       DERIVED.weapons.scatterCannon.pelletOffsetsRad.length,
     );
@@ -414,7 +455,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     };
     const { world, shooter } = setup(twoPlayers, map);
     target(world).pos = { x: 3 + BALANCE.forms.runner.radiusM, y: 0 };
-    const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (projectile === null) throw new Error('missing projectile');
     advanceAllProjectiles(world);
     advanceAllProjectiles(world);
@@ -426,7 +467,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     const { world, shooter } = setup();
     target(world).pos = { x: 3, y: 0 };
     target(world).protectedEndTick = 100;
-    const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (projectile === null) throw new Error('missing projectile');
     advanceAllProjectiles(world);
     advanceAllProjectiles(world);
@@ -446,7 +487,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     };
     const { world, shooter } = setup(twoPlayers, map);
     target(world).pos = { x: 6, y: 0 };
-    const first = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const first = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (first === null) throw new Error('missing projectile');
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
     expect(world.events.at(-1)?.type).toBe('projectileImpact');
@@ -454,7 +495,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     const cover = world.cover[0];
     if (cover === undefined) throw new Error('missing cover');
     cover.intact = false;
-    const second = spawnProjectile(world, shooter, 0, 2, 0, 0);
+    const second = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 2, 0, 0);
     if (second === null) throw new Error('missing projectile');
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
     expect(world.events.at(-1)?.type).toBe('projectileHit');
@@ -473,13 +514,13 @@ describe('GR-7 projectile contacts and lifecycle', () => {
       throw new Error('missing player');
     first.pos = { x: 4, y: 0 };
     second.pos = { x: 4, y: 0 };
-    const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (projectile === null) throw new Error('missing projectile');
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
     expect(first.hpFrac).toBeLessThan(1);
     expect(second.hpFrac).toBe(1);
     first.alive = false;
-    const next = spawnProjectile(world, shooter, 0, 2, 0, 0);
+    const next = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 2, 0, 0);
     if (next === null) throw new Error('missing projectile');
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
     expect(second.hpFrac).toBeLessThan(1);
@@ -489,7 +530,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     const { world, shooter } = setup();
     target(world).form = Form.Turret;
     target(world).pos = { x: 4, y: 0 };
-    const first = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const first = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (first === null) throw new Error('missing projectile');
     shooter.form = Form.Beast;
     shooter.alive = false;
@@ -502,7 +543,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     expect(world.events.find((event) => event.type === 'damage')).toMatchObject(
       { attackerForm: Form.Runner },
     );
-    const second = spawnProjectile(world, shooter, 0, 2, 0, 0);
+    const second = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 2, 0, 0);
     if (second === null) throw new Error('missing projectile');
     expect(world.projectiles).toHaveLength(1);
     removePlayer(world, shooter.id);
@@ -515,7 +556,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     shooter.form = Form.Beast;
     target(world).form = Form.Beast;
     target(world).pos = { x: 3, y: 0 };
-    fireProjectiles(world, shooter, 1, 0, 0);
+    fireProjectiles(world, shooter, tier1Gun(shooter.form), 1, 0, 0);
     while (world.projectiles.length > 0) advanceAllProjectiles(world);
     expect(
       world.events.filter((event) => event.type === 'projectileHit'),
@@ -536,7 +577,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     ): { damage: number; traveled: number } {
       const { world, shooter } = setup();
       shooter.form = form;
-      const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+      const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
       if (projectile === null) throw new Error('missing projectile');
       const victim = target(world);
       victim.pos = {
@@ -577,7 +618,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
 
   it('GR-7.6 exact range endpoint collision wins over expiry', () => {
     const { world, shooter } = setup();
-    const projectile = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const projectile = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (projectile === null) throw new Error('missing projectile');
     const victim = target(world);
     victim.pos = {
@@ -675,14 +716,14 @@ describe('GR-7 projectile contacts and lifecycle', () => {
 
   it('GR-7.5 pool reuse overwrites stale data and active ids remain ordered', () => {
     const { world, shooter } = setup([shooterSpec]);
-    const first = spawnProjectile(world, shooter, 0, 1, 0, 0);
+    const first = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     if (first === null) throw new Error('missing projectile');
     first.traveledM = 10;
     clearProjectiles(world);
     expect(world.projectilePool).toHaveLength(1);
     shooter.form = Form.Turret;
     shooter.pos = { x: 2, y: 2 };
-    const second = spawnProjectile(world, shooter, Math.PI / 2, 2, 4, 0);
+    const second = spawnProjectile(world, shooter, tier1Gun(shooter.form), Math.PI / 2, 2, 4, 0);
     if (second === null) throw new Error('missing projectile');
     expect(second).toBe(first);
     expect(second).toMatchObject({
@@ -694,7 +735,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
     });
     expect(second.pos.x).toBeCloseTo(2, 12);
     expect(second.dir.y).toBe(1);
-    const third = spawnProjectile(world, shooter, 0, 2, 5, 0);
+    const third = spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 2, 5, 0);
     if (third === null) throw new Error('missing projectile');
     expect(world.projectiles.map((projectile) => projectile.id)).toEqual([
       1, 2,
@@ -705,7 +746,7 @@ describe('GR-7 projectile contacts and lifecycle', () => {
 
   it('GR-2.7 match transition clears active projectiles without resetting id', () => {
     const { world, shooter } = setup([shooterSpec]);
-    spawnProjectile(world, shooter, 0, 1, 0, 0);
+    spawnProjectile(world, shooter, tier1Gun(shooter.form), 0, 1, 0, 0);
     const nextId = world.nextProjectileId;
     world.tick = world.phaseEndTick;
     advancePhase(world);

@@ -19,7 +19,7 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
   - `TOOL`: a repository script (`pnpm map:validate`, `pnpm loadtest`, and so on).
   - `MANUAL`: a person follows the steps on a local or deployed build and records the result in the task completion report.
   - `PLAYTEST`: measured in playtests and reported in the prototype report.
-- **Numbers:** expected values come from `docs/BALANCE.md` proto-3. If balance changes, update the expected values in the same task.
+- **Numbers:** expected values come from `docs/BALANCE.md` proto-4. If balance changes, update the expected values in the same task.
 - **Tolerances:** positions ±0.01 m in SIM tests unless stated; timings exact in ticks.
 - Every SIM test sets up its world with the test helper `makeTestWorld({ seed, mode, players })` on `greybox_v1` or on the empty test map `test_open` (a 64 x 64 m box with outer walls only, defined in the sim test fixtures).
 
@@ -116,7 +116,7 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
 
 | Id | Type | Check | Pass when |
 |---|---|---|---|
-| AT-WPN-01 | SIM | GR-7.2 Pulse Pistol rate | Holding fire for 300 ticks fires 60 shots (±1) |
+| AT-WPN-01 | SIM | GR-7.2 Pulse Pistol rate (D-076) | Holding fire with a full magazine fires 20 shots at 6 per s (GR-7.2 accumulator: the second shot 4 ticks after the first, then every 5 ticks), then an automatic reload starts on the last shot's tick and the next shot fires 45 ticks later |
 | AT-WPN-02 | SIM | Rail Repeater rate | Holding fire for 120 ticks (4 s) as a Turret fires 14 or 15 shots (3.5 per s average) |
 | AT-WPN-03 | SIM | GR-7.2 no banking | Releasing fire for 2 s and pressing again: the next shot fires at once, and the following one exactly one interval later |
 | AT-WPN-04 | SIM | GR-7.6 range | A Pulse Pistol shot in open space expires after traveling 14 m (±0.01) |
@@ -199,8 +199,8 @@ Related: `docs/GAME_RULES.md` (GR ids), `DECISIONS.md` (D ids), `docs/PROTOTYPE_
 
 | Id | Type | Check | Pass when |
 |---|---|---|---|
-| AT-MATCH-01 | SIM | GR-2.2 phases | COUNTDOWN 90, PLAYING 5400, RESULTS 450 ticks, then a new COUNTDOWN with a new match id |
-| AT-MATCH-02 | SIM | GR-2.4 reset | At COUNTDOWN all scores and stats are 0, everyone is a Runner with 60 Flux at distinct spawn points |
+| AT-MATCH-01 | SIM | GR-2.2 phases (D-073) | COUNTDOWN 90, PLAYING 18000, RESULTS 450 ticks, then a new COUNTDOWN with a new match id |
+| AT-MATCH-02 | SIM | GR-2.4 reset | At COUNTDOWN all scores and stats are 0, everyone is a Runner with 60 Flux, only Runner unlocked, the dagger and no guns, at distinct spawn points |
 | AT-MATCH-03 | SIM | COUNTDOWN rules | Players can move and aim; firing, abilities and morphs do nothing; no regen |
 | AT-MATCH-04 | SIM | GR-2.7 match end | All projectiles removed at RESULTS; no input applied during RESULTS |
 | AT-MATCH-05 | UNIT | GR-12.3 ranking | Ties broken by fewer deaths, then more damage, then lower seat |
@@ -269,14 +269,16 @@ D-066 stages T-031 signoff. AT-NET-17 keeps its full manual pass condition above
 | AT-CTRL-01 | UNIT | Bindings | Every action in CONTROLS_UI §2.1 and §2.2 maps to the right key; reserved keys produce no action |
 | AT-CTRL-02 | UNIT | Latching | A press and release within one tick yields one frame with the button held |
 | AT-CTRL-03 | UNIT | Mouse aim | Cursor ground point to aim angle is correct for 8 test points; within 0.75 m the previous aim is kept |
-| AT-CTRL-04 | UNIT | Keyboard aim | Up + Right targets 45°; aim rotates at 720°/s; release keeps the aim |
-| AT-CTRL-05 | UNIT | Lock acquire | Picks the smallest angle within ±30° in range and sight; falls back to the nearest valid enemy; nothing valid gives no lock |
-| AT-CTRL-06 | UNIT | Lock tracking and lead | Aim point = position + velocity × travel time × 0.5 at 100% assist; 0 lead at 0% |
-| AT-CTRL-07 | UNIT | Lock override, cycle, release, break | Arrow key releases; tap Q cycles clockwise; hold Q 0.5 s releases; 0.5 s out of sight or range breaks; mouse movement releases |
+| AT-CTRL-04 | UNIT | Keyboard turn model (D-078, BALANCE §9.6) | Holding Left turns counter-clockwise at 90°/s rising to 300°/s; the angle after 1 s is identical at 30, 60, 144 and uneven frame rates (within 1e-9 rad); Left+Right turns nothing and resets the ramp; release stops at once; Up/Down change aim distance at 10 m/s within 2 to 24 m |
+| AT-CTRL-05 | UNIT | Assist acquire (D-079) | Only a fire press acquires; only targets within 5° of raw aim, in weapon range, in line of sight, alive and not protected qualify; smallest angle wins, then distance, then seat; no candidate means no assist; held fire never acquires |
+| AT-CTRL-06 | UNIT | Assist strength and limits | The offset never exceeds 3° (scaled by strength, 0 at 0%), changes at most 40°/s, uses the target's current position with no lead, and the Turret cap still applies in the sim |
+| AT-CTRL-07 | UNIT | Assist break and reacquire | A target moving away while raw aim stays still breaks the assist when raw error exceeds 7°; manual tracking keeps it; occlusion, death, protection, range loss or fire release breaks it; the offset decays at 40°/s; the same target cannot be reacquired for 0.75 s and never without a new fire press; there is no cycling |
 | AT-CTRL-08 | UNIT | Scheme detection | Mouse move over 3 px sets `mouse`; arrow sets `keys`; lock sets `lock`; glyphs switch |
 | AT-CTRL-09 | E2E | Browser rules | Space, arrows and Tab do not scroll the page; right-click shows no menu; blur releases held keys |
 | AT-CTRL-10 | MANUAL | Keyboard only | A tester completes a full match, every menu and the settings using only the keyboard |
 | AT-CTRL-11 | UNIT | Fire toggle | In Toggle mode one press starts firing, the next stops |
+| AT-CTRL-12 | UNIT | Facing-relative encoding (GR-4.19) | `encodeFacingMove` maps W to the aim direction, D to aim minus 90°, W+D to a unit diagonal, opposing keys to 0, and never exceeds ±127 for any aim |
+| AT-CTRL-13 | E2E | Menu keeps the match running (D-080) | With the menu open, input frames are neutral, the server keeps ticking, another player can damage and kill the player, and no proxy takes over before the ordinary AFK time |
 
 ## 19. HUD, screens and audio
 
@@ -333,13 +335,13 @@ Run on the playtest deployment with at least 4 humans (bots fill the rest) befor
 | Id | Check | Pass when |
 |---|---|---|
 | AT-E2E-01 | Open the link, enter a name, press Play | In a match within 10 s (median click to gameplay) |
-| AT-E2E-02 | Play a full Frenzy match | Countdown, 3 minutes, results, next match starts in the same room |
+| AT-E2E-02 | Play a full Frenzy match | Countdown, 10 minutes, results, next match starts in the same room |
 | AT-E2E-03 | Morph to all three forms in one life | Costs, timings and HUD match the rules |
 | AT-E2E-04 | Use all three abilities | Dash, Ram Charge (hit, wall stun, cover break) and Rail Shot (telegraph, pierce) behave as specified |
 | AT-E2E-05 | Win a fight using a counter form | EFFECTIVE hits appear; the death recap names the right counter |
 | AT-E2E-06 | Collect shards and die with Flux | Drop and respawn Flux follow the rules |
 | AT-E2E-07 | Zone Frenzy via host settings | Zone schedule, preview, contest and Turret half rate work; points ranking correct |
-| AT-E2E-08 | Keyboard only | A full match with lock-on, cycling and override |
+| AT-E2E-08 | Keyboard only | A full match with arrow turning, aim distance and the fragile assist |
 | AT-E2E-09 | Code room with 4 humans | All in the same room; host settings apply next match; late joiner handled |
 | AT-E2E-10 | Hide the tab for 20 s, then return | A proxy bot played; control returns; no desync |
 | AT-E2E-11 | Kill the network for 10 s, then restore | Reconnects into the same seat with the same stats |
@@ -352,3 +354,49 @@ Run on the playtest deployment with at least 4 humans (bots fill the rest) befor
 
 - **Fun Gate (T-100):** `docs/PROTOTYPE_SCOPE.md` §5.1 with the metrics from `pnpm analyze` and facilitator notes (`docs/PLAYTEST_PLAN.md` §3.1).
 - **Approval Gate (T-150):** `docs/PROTOTYPE_SCOPE.md` §5 and §8; every hypothesis H1 to H14 reported with value, threshold, pass or fail, and sample size.
+
+---
+
+## 24. Release request of 2026-10-23
+
+Rules: GAME_RULES §4.5, §7.6 to §7.11, §18, §19. Numbers: BALANCE proto-4. Matrix and owners: `docs/CHANGE_CONTRACT.md` §9.
+
+| Id | Type | Check | Pass when |
+|---|---|---|---|
+| AT-MATCH-10 | SIM | GR-2.7a final tick | A KO, an unlock and a pickup on PLAYING tick 18,000 count; on the next tick reloads and strikes are cancelled without moving ammunition, shells in flight vanish without a blast and no pickup happens |
+| AT-LOAD-01 | SIM | GR-18.1 fresh loadout | At match start, after a late join and for a human replacing a bot: Runner only unlocked, progress 0, no guns, selections 0; fire with no gun starts a dagger strike |
+| AT-LOAD-02 | SIM | GR-18.3 locked guns | A Runner collects a Slug Cannon and a Rail Repeater: both stored with full pickup ammunition; morph to Beast is denied `locked`; nothing fires them until the unlock and a completed morph |
+| AT-LOAD-03 | SIM | GR-18.2 thresholds | KO 2 to 3 unlocks Beast on the same step-9 tick with one `formUnlocked`; KO 5 to 6 unlocks Turret; no morph happens and no gun is granted |
+| AT-LOAD-04 | SIM | GR-18.4 persistence | After death and respawn, unlocks and progress are unchanged and the player respawns as Runner |
+| AT-LOAD-05 | SIM | No false unlocks | Assists, points, a mutual kill's dead killer (still credited once), a repeated pending death and a damage event without a death never add progress |
+| AT-LOAD-06 | SIM | GR-18.5 seats | A new COUNTDOWN resets everyone; a bot taking over a departed human keeps that seat's gear; a human replacing a bot starts fresh |
+| AT-LOAD-07 | SERVER | Reconnect and replacement | A reconnecting human keeps unlocks, guns and ammunition exactly; a joining human never inherits the replaced bot's loadout |
+| AT-AMMO-01 | SIM | D-076 retention | Every owned gun, including stored guns of locked and other forms, has the same `mag` and `reserve` after death and respawn as at death |
+| AT-AMMO-02 | SIM | Death races | Death during a reload moves no ammunition; a reload due on the death tick completes first; death on the tick of a swap or shot keeps the post-action counts |
+| AT-AMMO-03 | SIM | Morph and swap races | Morph start, swap, dagger, ability and stun cancel a reload with no ammunition moved; knockback and sprint do not; stored guns never reload |
+| AT-AMMO-04 | SIM | GR-7.19 reload | R reloads the exact `min(magazine − mag, reserve)` after the reload ticks; an empty magazine reloads automatically; full magazine or empty reserve does nothing |
+| AT-AMMO-05 | SIM | GR-7.18 consumption | One round per attack (a Scatter shell is one round for 7 pellets); firing stops at 0 rounds |
+| AT-AMMO-06 | SIM | GR-7.16 swap | Q flips between the form's two guns, blocks fire for exactly 12 ticks and does nothing with one gun; the first gun of the current form draws with the same delay |
+| AT-AMMO-07 | SIM | GR-7.17 fallback | With no usable gun, held fire starts dagger strikes every 18 ticks; an empty magazine with a reserve reloads instead |
+| AT-LOOT-01 | SIM | GR-19.4 simultaneous claims | Two players in range on one tick: the nearer takes the item, a tie goes to the lower seat, the other gets nothing, and the item is gone that tick |
+| AT-LOOT-02 | SIM | Duplicates and caps | A duplicate adds `ammoPerPickup` up to `reserveMax`; at the cap the item stays; a new gun gets `min(magazine, ammoPerPickup)` loaded |
+| AT-LOOT-03 | SIM | GR-19.2 placement | 15 items: 3 per tier 1 gun, 2 per tier 2 gun; every item has 1.5 m clearance; spacing, spawn and player limits hold or the fallback rule applies; positions differ between match seeds and repeat exactly for the same seed |
+| AT-LOOT-04 | SIM | GR-19.5 replenishment | A taken item returns as the same gun 600 ticks later at a newly drawn place, with `lootSpawn` |
+| AT-LOOT-05 | SIM | Isolation and authority | Loot draws do not change shard or spawn choices of a fixed seed; no input field changes inventory; dead players and RESULTS never collect |
+| AT-WPN-16 | SIM | Form restrictions | Only the current form's selected gun fires; stored guns keep their timers and ammunition |
+| AT-WPN-17 | UNIT | BALANCE §9.5 benchmark | Each tier 2 gun beats its tier 1 by at least 10% burst DPS and more per attack under the stated benchmark, computed from `BALANCE` |
+| AT-WPN-18 | SIM | Tier 2 TTK | Disc kills a standing Runner on the 4th hit; Slug kills a Beast on the 3rd hit; two center mortar shells kill a Beast |
+| AT-WPN-19 | SIM | GR-7.22 disc bounce | A disc fired at 30° into a vertical wall reflects to 150°, deals 30 after the bounce, a corner contact reverses both components, a second wall destroys it, and the total path never exceeds 20 m |
+| AT-WPN-20 | SIM | GR-7.26 landing | Aim distance 5 lands at 8 m, 30 lands at 20 m, and a point inside a wall moves back in 0.1 m steps to open floor |
+| AT-WPN-21 | SIM | GR-7.28 blast | Damage 75 at the center, 37.5 at 2.5 m edge distance, 0 beyond; a wall between the blast and a target blocks it; the owner and protected players take nothing; shells fly over walls |
+| AT-WPN-22 | SIM | Slug | A Slug hit at 11 m deals 50 (neutral) with no falloff and expires at 12 m |
+| AT-MELEE-01 | SIM | GR-7.31 reach | A Runner strike hits a Runner whose circle is within 0.35 m of the 1.4 m segment and misses one just beyond |
+| AT-MELEE-02 | SIM | Obstruction | A wall or intact cover between attacker and target truncates the segment and the strike misses |
+| AT-MELEE-03 | SIM | Target selection and timing | The candidate nearest the segment start wins, then center distance, then seat; damage lands on tick +3; recovery blocks fire, strikes, abilities, reloads and morphs until tick +18 |
+| AT-MOV-09 | SIM | GR-4.16 sprint | Forward input with sprint reaches 11.05 m/s (Runner) and 7.8 m/s (Beast); diagonal input is normalized first; 61° off aim, held fire, morph or strike gives normal speed |
+| AT-MOV-10 | SIM | Sprint and Turret | A Turret with sprint and move input stays at speed 0 |
+| AT-MOV-11 | SIM | Sprint collisions | Sprinting into walls slides and never tunnels (1,000 seeded runs) |
+| AT-NET-20 | UNIT | Protocol v5 | Input frames with `aimDist` and bits 8 to 11 round-trip; bits 12 to 15, wrong widths and out-of-range `aimDist` are rejected; new schema and event fields validate on the client |
+| AT-NET-21 | SIM | Prediction equivalence v5 | 1,000 seeded sequences with reloads, swaps, strikes, sprint, tier 2 fire and aim distance match every predictable field per tick when authoritative inventory is supplied; a stale-inventory case shows the expected divergence |
+| AT-BOT-10 | SIM | Bots follow the same rules | Bots start fresh, collect loot only by walking, never fire a locked or missing gun, reload by the same rules and never see through walls |
+| AT-PERF-06 | TOOL | Repeated full matches | Ten consecutive 600 s matches in one process: no growth in projectiles, loot, pools or heap after the first match |

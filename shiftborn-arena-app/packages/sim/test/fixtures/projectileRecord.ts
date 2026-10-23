@@ -20,5 +20,10 @@ export function projectileRecord(id: number): Projectile {
     spawnTick: 0,
     inputSeq: 1,
     shotIdx: 0,
+    bounces: 0,
+    damageMult: 1,
+    landTick: 0,
+    targetX: 0,
+    targetY: 0,
   };
 }

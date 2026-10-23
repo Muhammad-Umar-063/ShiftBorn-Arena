@@ -155,6 +155,11 @@ describe('T-027 real Colyseus ping and probe wiring', () => {
       other.vel = { x: 0, y: 0 };
       shooter.protectedEndTick = 0;
       other.protectedEndTick = 0;
+      // D-075: both shooters need a gun; loot and ammunition have their own tests.
+      for (const armed of [shooter, other]) {
+        armed.guns.pulsePistol = { owned: true, mag: 20, reserve: 0 };
+        armed.selectedTier.runner = 1;
+      }
       room.testWorld.tick = DERIVED.net.pingIntervalTicks;
       room.testWorld.phase = Phase.Playing;
       room.testWorld.phaseEndTick = room.testWorld.tick + DERIVED.match.durationTicks;
@@ -168,13 +173,15 @@ describe('T-027 real Colyseus ping and probe wiring', () => {
       expect(room.samples(other.id)).toEqual([]);
       const batches: unknown[] = [];
       shooterClient.onMessage(ServerMessageId.Ev, (payload: unknown) => batches.push(payload));
-      shooterClient.send(ClientMessageId.Input, [1, 0, 0, 0, InputButton.Fire, 0]);
+      shooterClient.send(ClientMessageId.Input, [1, 0, 0, 0, InputButton.Fire, 0,
+        120, ...Array(8).fill(0)]);
       otherClient.send(ClientMessageId.ClientStats, {
         fpsMedian: 60, fpsP5: 45, rttMs: 9999, corrections: 0,
         inputScheme: 'mouse', windowW: 1280, windowH: 720,
         browser: 'Chromium', hiddenMs: 0, errors: 0,
       });
-      otherClient.send(ClientMessageId.Input, [1, 0, 0, 0, InputButton.Fire, 0]);
+      otherClient.send(ClientMessageId.Input, [1, 0, 0, 0, InputButton.Fire, 0,
+        120, ...Array(8).fill(0)]);
       await until(() => room.queue(shooter.id)?.lastReceivedSeq === 1 && room.queue(other.id)?.lastReceivedSeq === 1);
       room.tick();
       const spawns = room.testWorld.events.filter((event) => event.type === 'projectileSpawn');

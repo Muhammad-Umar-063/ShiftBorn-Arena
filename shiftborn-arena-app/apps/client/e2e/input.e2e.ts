@@ -108,15 +108,15 @@ test('AT-CTRL-09 browser rules, reticle, latching and packet history', async ({ 
     return { suspended, firstSeq: first?.seq, nextSeq: next?.seq, packetWidth: width };
   });
   expect(recovered).toEqual({ suspended: null, firstSeq: 101,
-    nextSeq: 102, packetWidth: 6 });
+    nextSeq: 102, packetWidth: 14 });
   const packetCheck = await page.evaluate(() => {
     const h = (window as unknown as { __inputHarness: {
       packets: number[][]; manager: { dispose(): void }; canvas: HTMLCanvasElement;
     } }).__inputHarness;
     const latest = h.packets.at(-1) ?? [];
-    const seqs = Array.from({ length: latest.length / 6 }, (_, index) => latest[index * 6] ?? -1);
+    const seqs = Array.from({ length: latest.length / 15 }, (_, index) => latest[index * 15] ?? -1);
     h.manager.dispose();
-    return { valid: latest.length > 0 && latest.length % 6 === 0, seqs,
+    return { valid: latest.length > 0 && latest.length % 15 === 0, seqs,
       cursor: h.canvas.style.cursor,
       reticles: document.querySelectorAll('.game-reticle').length };
   });
@@ -145,4 +145,36 @@ test('AT-CTRL-09 browser rules, reticle, latching and packet history', async ({ 
   });
   expect(remount).toEqual({ frameMove: 127, packets: 1,
     oldHeld: false, reticles: 0 });
+});
+
+test('T-037 carries ordered shot intents until acknowledgement or input reset', async ({ page }) => {
+  await page.goto('/');
+  const packets = await page.evaluate(async () => {
+    const { InputManager } = await import('/src/input/InputManager.ts');
+    const sent: number[][] = [];
+    const manager = new InputManager({
+      transport: { sendInput(packet) { sent.push([...packet]); return true; } },
+      fireMode: () => 'hold', player: () => ({ x: 0, y: 0, aim: 0 }),
+      camera: () => null, perspective: () => 'tpp',
+    });
+    manager.setActive(true);
+    manager.tick();
+    manager.rememberShotIntents([{ inputSeq: 1 }], performance.now());
+    manager.tick();
+    manager.rememberShotIntents([{ inputSeq: 2 }], performance.now());
+    manager.tick();
+    manager.confirmShotIntent(1);
+    manager.tick();
+    manager.clearInput();
+    manager.tick();
+    manager.dispose();
+    return sent.map((packet) => packet.slice(7, 15));
+  });
+  expect(packets).toEqual([
+    Array(8).fill(0),
+    [1, ...Array(7).fill(0)],
+    [1, 2, ...Array(6).fill(0)],
+    [2, ...Array(7).fill(0)],
+    Array(8).fill(0),
+  ]);
 });

@@ -58,6 +58,11 @@ export class RemoteTimeline {
 
   get newestTick(): number | null { return this.latest?.tick ?? null; }
   get historySize(): number { return this.world.length; }
+  get bufferDepthTicks(): number | null {
+    const oldest = this.world[0];
+    const newest = this.world.at(-1);
+    return oldest === undefined || newest === undefined ? null : newest.tick - oldest.tick;
+  }
   samples(id: string): readonly RemoteSample[] { return this.players.get(id) ?? []; }
 
   ingest(snapshot: EntitySnapshot, receivedAtMs: number): boolean {
@@ -111,7 +116,8 @@ export class RemoteTimeline {
     return { tick: target, matchId: latest.matchId,
       localPlayerId: latest.localPlayerId, players,
       shards: frame?.snapshot.shards ?? [], clusters: frame?.snapshot.clusters ?? [],
-      cover: frame?.snapshot.cover ?? [], zoneFrenzy: frame?.snapshot.zoneFrenzy ?? false };
+      cover: frame?.snapshot.cover ?? [], zoneFrenzy: frame?.snapshot.zoneFrenzy ?? false,
+      zonePoint: frame?.snapshot.zonePoint ?? null };
   }
 
   samplePlayer(id: string, renderTick: number): PlayerVisual | null {

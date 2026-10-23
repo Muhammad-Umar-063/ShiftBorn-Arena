@@ -14,6 +14,7 @@ import {
   Form,
   GREYBOX_V1,
   Mode,
+  gunFor,
   Phase,
   PROTOCOL_VERSION,
   ServerMessageId,
@@ -176,7 +177,7 @@ describe('AT-NET-10 pure seat rules', () => {
       seat: 3,
     });
     const frame = neutralBotFrame(playerAt(world.players, 0), 4);
-    expect(frame).toEqual({
+    expect(frame).toEqual({ aimDist: 120,
       seq: 4,
       moveX: 0,
       moveY: 0,
@@ -227,9 +228,11 @@ class SeatHarnessRoom extends ArenaRoom {
   }
 
   spawnTestProjectile(seat: number) {
+    const shooter = playerAt(this.world.players, seat);
     const projectile = spawnProjectile(
       this.world,
-      playerAt(this.world.players, seat),
+      shooter,
+      gunFor(shooter.form, 1),
       0,
       1,
       0,
@@ -314,9 +317,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
             Object.values(player.abilityReadyTick).every(
               (tick) => tick === 0,
             ) &&
-            Object.values(player.weapon).every(
-              (weapon) => weapon.nextShotIn === 0,
-            ) &&
+            Object.values(player.gunTimers).every((timer) => timer === 0) &&
             player.heat === 0 &&
             player.morph === null &&
             player.ability === null,
@@ -395,7 +396,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
     });
   }, 10000);
 
-  it('AT-NET-10 replaces the idle lowest scorer in the same tick with ordered terminal events', async () => {
+  it('AT-NET-10 AT-LOAD-07 replaces the idle lowest scorer in the same tick with ordered terminal events', async () => {
     await withRoom<SeatHarnessRoom>(SeatHarnessRoom, async (room, server) => {
       const observer = await server.connectTo(room, {
         protocolVersion: PROTOCOL_VERSION,
@@ -411,6 +412,9 @@ describe('AT-NET-10 real room seat lifecycle', () => {
       for (const player of room.testWorld.players)
         if (player?.isBot) player.stats.kos = 10;
       playerAt(room.testWorld.players, 5).stats.kos = 1;
+      playerAt(room.testWorld.players, 5).unlocked = {
+        [Form.Runner]: true, [Form.Beast]: true, [Form.Turret]: true,
+      };
       playerAt(room.testWorld.players, 6).stats.kos = 0;
       room.applyTestDamage(6, 4);
       const removedBotId = playerAt(room.testWorld.players, 5).id;
@@ -438,6 +442,12 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         isBot: false,
       });
       expect(room.state.players.has(removedBotId)).toBe(false);
+      // GR-18.5: the joining human never inherits the replaced bot's progress.
+      expect(playerAt(room.testWorld.players, 5).unlocked).toEqual({
+        [Form.Runner]: true, [Form.Beast]: false, [Form.Turret]: false,
+      });
+      expect(playerAt(room.testWorld.players, 5).stats.kos).toBe(0);
+      expect(room.state.players.get(human.sessionId)?.unlockedMask).toBe(1);
       expect(
         room.testWorld.projectiles.some((item) => item.id === projectile.id),
       ).toBe(false);
@@ -477,6 +487,7 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         0,
         0,
         ClientAimSourceCode.Mouse,
+        120, ...Array(8).fill(0),
       ]);
       await new Promise<void>((resolve) => setTimeout(resolve, 20));
       room.advanceTestTick();
@@ -550,7 +561,10 @@ describe('AT-NET-10 real room seat lifecycle', () => {
       human.flux = 23;
       human.morph = { target: Form.Turret, endTick: room.testWorld.tick + 10 };
       human.morphReadyTick = 90;
-      human.weapon.beast.nextShotIn = 3;
+      human.gunTimers.scatterCannon = 3;
+      human.guns.slugCannon = { owned: true, mag: 2, reserve: 8 };
+      human.selectedTier.beast = 2;
+      human.unlocked.beast = true;
       human.abilityReadyTick.beast = 120;
       human.stunEndTick = 50;
       human.knockback = { vel: { x: 1, y: 0 }, endTick: 15 };
@@ -585,7 +599,10 @@ describe('AT-NET-10 real room seat lifecycle', () => {
         'flux',
         'morph',
         'morphReadyTick',
-        'weapon',
+        'gunTimers',
+        'guns',
+        'selectedTier',
+        'unlocked',
         'abilityReadyTick',
         'stunEndTick',
         'knockback',

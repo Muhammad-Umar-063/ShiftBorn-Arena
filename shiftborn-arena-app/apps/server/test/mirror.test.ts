@@ -82,6 +82,7 @@ describe('T-021 NETWORK_PROTOCOL §4.2 mirror', () => {
     expect(state.matchId).toBe(world.matchId);
     expect(state.players.size).toBe(0);
     expect(state.shards.size).toBe(world.shards.length);
+    expect(state.loot.size).toBe(world.loot.length);
     expect(state.cover.length).toBe(world.cover.length);
     expect(state.zone.active).toBe(false);
     expect(state.zone.point).toBe(-1);
@@ -115,9 +116,17 @@ describe('T-021 NETWORK_PROTOCOL §4.2 mirror', () => {
     player.lastHeldButtons = 5;
     player.lastShotInputSeq = 11;
     player.nextShotIdx = 3;
-    player.weapon[Form.Runner].nextShotIn = 0.1;
-    player.weapon[Form.Beast].nextShotIn = 0.2;
-    player.weapon[Form.Turret].nextShotIn = 0.3;
+    player.aimDistM = 18.7; player.sprinting = true;
+    player.gunTimers.pulsePistol = 0.1;
+    player.gunTimers.scatterCannon = 0.2;
+    player.gunTimers.railRepeater = 0.3;
+    player.guns.slugCannon = { owned: true, mag: 3, reserve: 12 };
+    player.guns.pulsePistol = { owned: true, mag: 20, reserve: 0 };
+    player.selectedTier = { runner: 1, beast: 2, turret: 0 };
+    player.reload = { gun: 'slugCannon', endTick: 80 };
+    player.melee = { startTick: 60, strikeTick: 63, endTick: 78 };
+    player.swapReadyTick = 61;
+    player.unlocked.beast = true;
     player.ccImmuneEndTick = 72;
     mirrorWorld(world, state, {
       connectedIds: new Set(['p']),
@@ -147,9 +156,17 @@ describe('T-021 NETWORK_PROTOCOL §4.2 mirror', () => {
       nextShotIdx: 3,
       ccImmuneEndTick: 72,
     });
-    expect(record?.weaponRunnerNextShotIn).toBeCloseTo(0.1);
-    expect(record?.weaponBeastNextShotIn).toBeCloseTo(0.2);
-    expect(record?.weaponTurretNextShotIn).toBeCloseTo(0.3);
+    // NETWORK_PROTOCOL §4.2: arrays follow GUN_IDS order.
+    expect([...(record?.gunNextShotIn ?? [])].map((value) => Math.round(value * 10)))
+      .toEqual([1, 0, 2, 0, 3, 0]);
+    expect(record).toMatchObject({
+      locomotion: { aimDist: 187, sprinting: true },
+      unlockedMask: 3, gunOwnedMask: 0b1001, selectedRunner: 1, selectedBeast: 2,
+      selectedTurret: 0, reloadGun: 3, reloadEndTick: 80, swapReadyTick: 61,
+      meleeActive: true, meleeStartTick: 60, meleeStrikeTick: 63, meleeEndTick: 78,
+    });
+    expect([...(record?.gunMag ?? [])]).toEqual([20, 0, 0, 3, 0, 0]);
+    expect([...(record?.gunReserve ?? [])]).toEqual([0, 0, 0, 12, 0, 0]);
     expect(state.hostId).toBe('p');
     expect(state.settings.botFill).toBe(true);
     expect(state.settings.nextMode).toBe(1);

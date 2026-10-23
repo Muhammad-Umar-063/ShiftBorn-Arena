@@ -1,4 +1,4 @@
-import { BALANCE, DERIVED, Form } from '@shiftborn/shared';
+import { BALANCE, DERIVED, Form, InputButton, Phase } from '@shiftborn/shared';
 import type { Vec2 } from './math/vec2.js';
 import { circleBoxPushOut } from './math/geometry.js';
 import {
@@ -26,12 +26,13 @@ export function decodeMoveDirection(moveX: number, moveY: number): Vec2 {
 
 /** GR-4.3–4.4: target and acceleration use the active (old during morph) form. */
 export function targetVelocity(
-  player: Pick<PlayerRecord, 'form' | 'morph'>,
+  player: Pick<PlayerRecord, 'form' | 'morph'> & { sprinting?: boolean },
   direction: Vec2,
 ): Vec2 {
   const speed =
     formStats(player.form).speedMps *
-    (player.morph === null ? 1 : BALANCE.morph.moveMult);
+    (player.morph === null ? 1 : BALANCE.morph.moveMult) *
+    (player.sprinting === true ? BALANCE.sprint.speedMult : 1);
   return { x: direction.x * speed, y: direction.y * speed };
 }
 
@@ -120,7 +121,7 @@ export function integrateCircleMotion(
 
 /** GR-4.5–4.6: explicit control freeze supports future ability motion. */
 export function advanceMovement(
-  player: Pick<PlayerRecord, 'pos' | 'vel' | 'form' | 'morph'>,
+  player: Pick<PlayerRecord, 'pos' | 'vel' | 'form' | 'morph'> & { sprinting?: boolean },
   direction: Vec2,
   map: MapRuntime,
   cover: readonly CoverState[],
@@ -135,4 +136,19 @@ export function advanceMovement(
       : (forcedVelocity ??
         moveTowardVelocity(player.vel, targetVelocity(player, direction)));
   return integrateCircleMotion(player, vel, map, cover);
+}
+
+/** GR-4.16: shared sprint eligibility, evaluated after ability motion and morph. */
+export function canSprint(
+  player: Pick<PlayerRecord, 'alive' | 'form' | 'aim' | 'morph' | 'ability' | 'stunEndTick' | 'knockback' | 'melee'>,
+  direction: Vec2, buttons: number, phase: Phase, tick: number,
+): boolean {
+  const length = Math.hypot(direction.x, direction.y);
+  if (phase === Phase.Results || !player.alive || player.form === Form.Turret ||
+    player.morph !== null || player.ability !== null || tick < player.stunEndTick ||
+    (player.knockback !== null && tick < player.knockback.endTick) ||
+    (player.melee !== null && tick < player.melee.endTick) ||
+    (buttons & InputButton.Sprint) === 0 || (buttons & InputButton.Fire) !== 0 || length === 0) return false;
+  const dot = (direction.x * Math.cos(player.aim) + direction.y * Math.sin(player.aim)) / length;
+  return dot >= Math.cos(DERIVED.sprint.maxForwardAngleRad);
 }

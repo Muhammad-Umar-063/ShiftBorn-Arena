@@ -8,6 +8,7 @@ import {
 import type { CoverState, PlayerRecord } from './world.js';
 import type { MapRuntime } from './map/collisionIndex.js';
 import type { Vec2 } from './math/vec2.js';
+import { meleeActive } from './loadout.js';
 import { integrateCircleMotion, type MotionResult } from './movement.js';
 import type { AbilityState } from './player.js';
 import { emitEvent } from './events.js';
@@ -35,6 +36,7 @@ export function canStartAbility(
     | 'knockback'
     | 'ability'
     | 'abilityReadyTick'
+    | 'melee'
   >,
   phase: Phase,
   tick: number,
@@ -46,6 +48,7 @@ export function canStartAbility(
     tick >= player.stunEndTick &&
     (player.knockback === null || tick >= player.knockback.endTick) &&
     player.ability === null &&
+    !meleeActive(player, tick) &&
     tick >= player.abilityReadyTick[player.form] &&
     abilityFor(player) === AbilityId.Dash
   );

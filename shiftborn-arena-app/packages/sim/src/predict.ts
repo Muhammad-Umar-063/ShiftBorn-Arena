@@ -1,7 +1,11 @@
 import {
   Form,
+  BALANCE,
+  clampAimDistance,
   InputButton,
   Phase,
+  WeaponId,
+  type GunId,
   type InputFrame,
 } from '@shiftborn/shared';
 import { advanceAim } from './aim.js';
@@ -13,9 +17,11 @@ import {
   startDash,
 } from './ability.js';
 import { advanceInputHistory } from './inputHistory.js';
+import { cloneGuns } from './loadout.js';
 import type { MapRuntime } from './map/collisionIndex.js';
 import {
   advanceMovement,
+  canSprint,
   decodeMoveDirection,
 } from './movement.js';
 import {
@@ -30,6 +36,7 @@ import { endSpawnProtection } from './protection.js';
 import {
   advanceShotSequence,
   advanceWeaponState,
+  cancelReloadState,
   scatterAngles,
 } from './weaponRules.js';
 import type { CoverState } from './world.js';
@@ -39,6 +46,7 @@ export interface PredictedShot {
   /** D-069 per-input-sequence index for later T-037 visual matching. */
   readonly shotIdx: number;
   readonly form: Form;
+  readonly weapon: GunId;
   readonly angle: number;
 }
 
@@ -53,12 +61,20 @@ export interface LocalPredictState extends Pick<
   | 'pos'
   | 'vel'
   | 'aim'
+  | 'aimDistM'
+  | 'sprinting'
   | 'form'
+  | 'unlocked'
   | 'morph'
   | 'morphReadyTick'
   | 'ability'
   | 'abilityReadyTick'
-  | 'weapon'
+  | 'guns'
+  | 'selectedTier'
+  | 'gunTimers'
+  | 'reload'
+  | 'swapReadyTick'
+  | 'melee'
   | 'heat'
   | 'overheatEndTick'
   | 'stunEndTick'
@@ -96,16 +112,19 @@ export function localPredictStateFromPlayer(player: PlayerRecord): LocalPredictS
     pos: { ...player.pos },
     vel: { ...player.vel },
     aim: player.aim,
+    aimDistM: player.aimDistM, sprinting: player.sprinting,
     form: player.form,
+    unlocked: { ...player.unlocked },
     morph: player.morph === null ? null : { ...player.morph },
     morphReadyTick: player.morphReadyTick,
     ability: player.ability === null ? null : { ...player.ability },
     abilityReadyTick: { ...player.abilityReadyTick },
-    weapon: {
-      [Form.Runner]: { ...player.weapon[Form.Runner] },
-      [Form.Beast]: { ...player.weapon[Form.Beast] },
-      [Form.Turret]: { ...player.weapon[Form.Turret] },
-    },
+    guns: cloneGuns(player.guns),
+    selectedTier: { ...player.selectedTier },
+    gunTimers: { ...player.gunTimers },
+    reload: player.reload === null ? null : { ...player.reload },
+    swapReadyTick: player.swapReadyTick,
+    melee: player.melee === null ? null : { ...player.melee },
     heat: player.heat,
     overheatEndTick: player.overheatEndTick,
     stunEndTick: player.stunEndTick,
@@ -142,14 +161,15 @@ export function predictStep(
     ...local,
     pos: { ...local.pos },
     vel: { ...local.vel },
+    unlocked: { ...local.unlocked },
     morph: local.morph === null ? null : { ...local.morph },
     ability: local.ability === null ? null : { ...local.ability },
     abilityReadyTick: { ...local.abilityReadyTick },
-    weapon: {
-      [Form.Runner]: { ...local.weapon[Form.Runner] },
-      [Form.Beast]: { ...local.weapon[Form.Beast] },
-      [Form.Turret]: { ...local.weapon[Form.Turret] },
-    },
+    guns: cloneGuns(local.guns),
+    selectedTier: { ...local.selectedTier },
+    gunTimers: { ...local.gunTimers },
+    reload: local.reload === null ? null : { ...local.reload },
+    melee: local.melee === null ? null : { ...local.melee },
     knockback:
       local.knockback === null
         ? null
@@ -168,6 +188,7 @@ export function predictStep(
     if (PHASE_POLICY[phase].aim && next.alive && tick >= next.stunEndTick) {
       next.aim = advanceAim(next, input.aim);
       next.aimSource = input.aimSource;
+      next.aimDistM = clampAimDistance((input.aimDist ?? BALANCE.aimDistance.defaultM * 10) / 10);
     }
   }
 
@@ -188,6 +209,7 @@ export function predictStep(
     if (decision.kind === 'start') {
       next.provisionalMorphCost += decision.cost;
       next.morph = { target, endTick: decision.endTick };
+      cancelReloadState(next);
     }
   }
 
@@ -198,6 +220,7 @@ export function predictStep(
     next.ability = startDash(tick, dashDirection(direction, next.aim));
     next.vel = { x: 0, y: 0 };
     endSpawnProtection(next, tick);
+    cancelReloadState(next);
   }
   if (next.ability !== null) {
     if (
@@ -215,6 +238,7 @@ export function predictStep(
       next.vel = { x: 0, y: 0 };
     }
   }
+  next.sprinting = canSprint(next, direction, useInput ? input.buttons : 0, phase, tick);
   if (next.ability === null) {
     const frozen =
       !PHASE_POLICY[phase].movement || !next.alive || tick < next.stunEndTick;
@@ -237,21 +261,27 @@ export function predictStep(
     next.vel = motion.vel;
   }
 
-  const firing = advanceWeaponState(next, phase, tick, held);
-  if (firing.fired) {
-    const inputSeq = useInput ? input.seq : next.lastInputSeq;
+  const pressed = useInput ? history.pressed : 0;
+  for (const action of advanceWeaponState(next, phase, tick, held, pressed)) {
+    if (action.kind !== 'fire') continue;
+    const inputSeq = useInput
+      ? input.shotIntentSeq !== undefined &&
+        Number.isSafeInteger(input.shotIntentSeq) && input.shotIntentSeq > 0 &&
+        input.shotIntentSeq <= input.seq ? input.shotIntentSeq : input.seq
+      : next.lastInputSeq;
     // D-069: the server and predictor share the per-sequence allocation rule.
-    const sequence = advanceShotSequence(next, inputSeq, next.form);
+    const sequence = advanceShotSequence(next, inputSeq, action.gun);
     next.lastShotInputSeq = inputSeq;
     next.nextShotIdx = sequence.nextShotIdx;
     const angles =
-      next.form === Form.Beast
+      action.gun === WeaponId.ScatterCannon
         ? scatterAngles(next.aim)
         : [next.aim];
     next.shotsThisTick = angles.map((angle, index) => ({
       inputSeq,
       shotIdx: sequence.firstShotIdx + index,
       form: next.form,
+      weapon: action.gun,
       angle,
     }));
     endSpawnProtection(next, tick);

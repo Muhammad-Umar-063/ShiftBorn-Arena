@@ -220,6 +220,7 @@ Enabled with the dev command `/dummies on [speed]` (`docs/ARCHITECTURE.md` §11)
 
 - Unit tests: target scoring, morph policy (each row of section 7), ability policy, aim error bounds, fire discipline, replacement choice (section 9.2).
 - Navigation tests: a path exists from every spawn point to every shard point and zone point for both radii; smoothed paths never cut through walls.
-- Scenario: a bot-only match of 8 Normal bots runs 180 s with every bot dealing damage, at least 10 KOs in total, at least 8 morphs in total, no bot stuck for more than 5 s.
+- Scenario: a bot-only match of 8 Normal bots runs 180 s with every bot dealing damage, at least 10 KOs in total, at least 8 morphs in total, no bot stuck for more than 5 s. The 180 s is a test window inside the 600 s match (D-073), not the match length.
+- Release rules (GR-18, GR-19, D-074 to D-076): bots start with the dagger and no guns, collect loot only by walking over it, morph only into unlocked forms, fire only owned guns of the current form, reload by the same rules and never use information a human in the same seat would not have (AT-BOT-10).
 - Determinism: two runs of the same bot-only match give the same final hash.
 - Performance: bot decision plus input time under 1 ms per room per tick on average with 8 bots.
